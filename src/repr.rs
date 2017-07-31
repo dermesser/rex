@@ -17,7 +17,6 @@ struct Matchee {
 
 /// Matcher matches characters.
 trait Matcher: Debug {
-    // TODO: If we want anchoring etc, change the char argument to string and index.
     fn matches(&self, m: &Matchee) -> bool;
 }
 
