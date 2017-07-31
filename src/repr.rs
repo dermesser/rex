@@ -1,147 +1,17 @@
+//! The repr module is concerned with the representation of parsed regular expressions and their
+//! compilation into a state graph. The state graph itself is defined in the state module.
+#![allow(dead_code)]
 
-use std::cell::RefCell;
-use std::collections::HashSet;
-use std::collections::LinkedList;
-use std::iter::FromIterator;
-use std::fmt::{Debug, Write};
-use std::rc::Rc;
-use std::string;
-
-/// Matchee contains a character and position to match.
-struct Matchee {
-    /// Current index within the matched string.
-    ix: usize,
-    /// Character at current position.
-    c: char,
-}
-
-/// Matcher matches characters.
-trait Matcher: Debug {
-    fn matches(&self, m: &Matchee) -> bool;
-}
-
-#[derive(Debug)]
-struct CharMatcher(char);
-impl Matcher for CharMatcher {
-    fn matches(&self, m: &Matchee) -> bool {
-        m.c == self.0
-    }
-}
-
-#[derive(Debug)]
-struct CharRangeMatcher(char, char);
-impl Matcher for CharRangeMatcher {
-    fn matches(&self, m: &Matchee) -> bool {
-        m.c >= self.0 && m.c <= self.1
-    }
-}
-
-#[derive(Debug)]
-struct CharSetMatcher(Vec<char>);
-impl Matcher for CharSetMatcher {
-    fn matches(&self, m: &Matchee) -> bool {
-        self.0.contains(&m.c)
-    }
-}
-
-#[derive(Debug)]
-struct AnyMatcher;
-impl Matcher for AnyMatcher {
-    fn matches(&self, m: &Matchee) -> bool {
-        true
-    }
-}
-
-fn wrap_matcher(m: Box<Matcher>) -> Option<Rc<Box<Matcher>>> {
-    Some(Rc::new(m))
-}
-
-/// State is a single state that the evaluation can be in. It contains several output states as
-/// well as a matcher.
-#[derive(Debug, Clone)]
-struct State {
-    // Possible following state(s).
-    out: Option<WrappedState>,
-    out1: Option<WrappedState>,
-    // If matcher is none, this is an "empty" state.
-    matcher: Option<Rc<Box<Matcher>>>,
-    // True if this is the last state in the chain, i.e. an re matches.
-    last: bool,
-}
-
-/// WrappedState is a shared pointer to a state node.
-type WrappedState = Rc<RefCell<State>>;
-
-fn wrap_state(s: State) -> WrappedState {
-    Rc::new(RefCell::new(s))
-}
-
-impl State {
-    fn patch(&mut self, next: WrappedState) {
-        if self.out.is_none() {
-            self.out = Some(next);
-        } else if self.out1.is_none() {
-            self.out1 = Some(next);
-        } else {
-            unimplemented!()
-        }
-    }
-}
-
-/// dot converts a graph starting with s into a Dot graph.
-fn dot(s: WrappedState) -> String {
-    let mut result = String::new();
-
-    let mut visited = HashSet::new();
-    let mut todo = LinkedList::from_iter(vec![s]);
-
-    loop {
-        if todo.is_empty() {
-            break;
-        }
-        let node = todo.pop_front().unwrap();
-        let id = format!("{:?}", node.as_ptr());
-        if visited.contains(&id) {
-            continue;
-        }
-        visited.insert(id.clone());
-
-        for next in [node.borrow().out.clone(), node.borrow().out1.clone()].into_iter() {
-            if let &Some(ref o) = next {
-                let nextid = format!("{:p}", o.as_ptr());
-                write!(&mut result,
-                       "\"{} {:?}\" -> \"{} {:?}\";\n",
-                       id,
-                       node.borrow().matcher,
-                       nextid,
-                       o.borrow().matcher);
-
-                if !visited.contains(&nextid) {
-                    todo.push_front(o.clone());
-                }
-            }
-        }
-    }
-    result
-}
-
-/// Types implementing Compile can be compiled into a state graph.
-trait Compile {
-    fn to_state(&self) -> (WrappedState, Vec<WrappedState>);
-}
+use matcher::{self, wrap_matcher};
+use state::{wrap_state, Compile, State, WrappedState};
 
 /// start_compile takes a parsed regex as RETree and returns the first node of a directed graph
 /// representing the regex.
 fn start_compile(re: RETree) -> WrappedState {
-    let (s, mut sp) = re.to_state();
-    let end = wrap_state(State {
-        out: None,
-        out1: None,
-        last: true,
-        matcher: None,
-    });
+    let (s, sp) = re.to_state();
+    let end = wrap_state(State::default());
     // Connect all loose ends with the final node.
-    for mut p in sp {
+    for p in sp {
         p.borrow_mut().patch(end.clone());
     }
     s
@@ -162,11 +32,11 @@ impl Compile for RETree {
                 if ps.len() < 1 {
                     panic!("invalid Concat len")
                 }
-                let (mut init, mut lastp) = ps[0].to_state();
+                let (init, mut lastp) = ps[0].to_state();
                 for i in 1..ps.len() {
-                    let (next, mut nextp) = ps[i].to_state();
+                    let (next, nextp) = ps[i].to_state();
                     // Connect all loose ends with the new node.
-                    for mut p in lastp {
+                    for p in lastp {
                         p.borrow_mut().patch(next.clone());
                     }
                     // Remember the loose ends of this one.
@@ -185,6 +55,7 @@ enum Pattern {
     Repeated(Box<RETree>, Repetition),
     Submatch(Box<RETree>),
     Alternate(Box<RETree>, Box<RETree>),
+    Char(char),
     Chars(char, char),
     CharSet(Vec<char>),
 }
@@ -192,12 +63,19 @@ enum Pattern {
 impl Compile for Pattern {
     fn to_state(&self) -> (WrappedState, Vec<WrappedState>) {
         match *self {
+            Pattern::Char(c) => {
+                let s = wrap_state(State {
+                    out: None,
+                    out1: None,
+                    matcher: wrap_matcher(Box::new(matcher::CharMatcher(c))),
+                });
+                (s.clone(), vec![s])
+            }
             Pattern::Chars(from, to) => {
                 let s = wrap_state(State {
                     out: None,
                     out1: None,
-                    matcher: wrap_matcher(Box::new(CharRangeMatcher(from, to))),
-                    last: false,
+                    matcher: wrap_matcher(Box::new(matcher::CharRangeMatcher(from, to))),
                 });
                 (s.clone(), vec![s])
             }
@@ -205,8 +83,7 @@ impl Compile for Pattern {
                 let s = wrap_state(State {
                     out: None,
                     out1: None,
-                    matcher: wrap_matcher(Box::new(CharSetMatcher(chars.clone()))),
-                    last: false,
+                    matcher: wrap_matcher(Box::new(matcher::CharSetMatcher(chars.clone()))),
                 });
                 (s.clone(), vec![s])
             }
@@ -217,7 +94,6 @@ impl Compile for Pattern {
                     out: Some(sa1),
                     out1: Some(sa2),
                     matcher: None,
-                    last: false,
                 });
                 sa1p.append(&mut sa2p);
                 (st, sa1p)
@@ -231,7 +107,6 @@ impl Compile for Pattern {
                 let (r, rp) = rep.repeat(s, sp);
                 (r, rp)
             }
-            _ => unimplemented!(),
         }
     }
 }
@@ -249,8 +124,8 @@ enum Repetition {
 
 impl Repetition {
     fn repeat(&self,
-              mut s: WrappedState,
-              mut to_patch: Vec<WrappedState>)
+              s: WrappedState,
+              to_patch: Vec<WrappedState>)
               -> (WrappedState, Vec<WrappedState>) {
         match *self {
             Repetition::Once => (s.clone(), vec![s]),
@@ -259,34 +134,30 @@ impl Repetition {
                     out: None,
                     out1: None,
                     matcher: None,
-                    last: false,
                 });
                 let before = wrap_state(State {
                     out: Some(s.clone()),
                     out1: Some(after.clone()),
                     matcher: None,
-                    last: false,
                 });
-                for mut p in to_patch {
+                for p in to_patch {
                     p.borrow_mut().patch(after.clone());
                 }
                 (before, vec![after])
             }
             Repetition::ZeroOrMore => {
-                let mut before = wrap_state(State {
+                let before = wrap_state(State {
                     out: Some(s.clone()),
                     out1: None,
                     matcher: None,
-                    last: false,
                 });
                 let after = wrap_state(State {
                     out: Some(s.clone()),
                     out1: None,
                     matcher: None,
-                    last: false,
                 });
-                before.borrow_mut().out1 = Some(after.clone());
-                for mut p in to_patch {
+                before.borrow_mut().patch(after.clone());
+                for p in to_patch {
                     p.borrow_mut().patch(after.clone());
                 }
                 (before, vec![after])
@@ -296,17 +167,15 @@ impl Repetition {
                     out: Some(s.clone()),
                     out1: None,
                     matcher: None,
-                    last: false,
                 });
-                for mut p in to_patch {
+                for p in to_patch {
                     p.borrow_mut().patch(after.clone());
                 }
                 (s, vec![after])
             }
             // Specific is 'min' concatenations of a simple state and 'max - min' concatenations of
             // a ZeroOrOnce state.
-            Repetition::Specific(min, max) => unimplemented!(),
-            _ => unimplemented!(),
+            Repetition::Specific(_min, _max) => unimplemented!(),
         }
     }
 }
@@ -314,12 +183,13 @@ impl Repetition {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use state::*;
 
     // /a(b|c)/
     fn simple_re0() -> RETree {
         RETree::Concat(vec![Pattern::Chars('a', 'a'),
-                            Pattern::Alternate(Box::new(RETree::One(Pattern::Chars('b', 'b'))),
-                                               Box::new(RETree::One(Pattern::Chars('c', 'c'))))])
+                            Pattern::Alternate(Box::new(RETree::One(Pattern::Char('b'))),
+                                               Box::new(RETree::One(Pattern::Char('c'))))])
     }
     // Returns compiled form of /(ab)?(cd)*(e|f)+x(g|h)i/
     fn simple_re1() -> RETree {
@@ -327,27 +197,29 @@ mod tests {
                 Pattern::Repeated(
                     Box::new(
                         RETree::Concat(vec!(
-                            Pattern::Chars('a', 'a'), Pattern::Chars('b', 'b')))),
+                            Pattern::Char('a'), Pattern::Chars('b', 'c')))),
                         Repetition::ZeroOrOnce),
 
                 Pattern::Repeated(
                     Box::new(
                         RETree::Concat(vec!(
-                            Pattern::Chars('c', 'c'), Pattern::Chars('d', 'd')))),
+                            Pattern::Char('c'), Pattern::Char('d')))),
                         Repetition::ZeroOrMore),
 
                 Pattern::Repeated(
                     Box::new(
                         RETree::One(
                             Pattern::Alternate(
-                                Box::new(RETree::One(Pattern::Chars('e', 'e'))),
-                                Box::new(RETree::One(Pattern::Chars('f', 'f')))))),
+                                Box::new(RETree::One(Pattern::Char('e'))),
+                                Box::new(RETree::One(Pattern::Char('f')))))),
                         Repetition::OnceOrMore),
 
 
-                Pattern::Chars('x', 'x'),
-                Pattern::Alternate(Box::new(RETree::One(Pattern::Chars('g', 'g'))), Box::new(RETree::One(Pattern::Chars('h', 'h')))),
-                Pattern::Chars('i', 'i'),
+                Pattern::Char('x'),
+                Pattern::Alternate(
+                    Box::new(RETree::One(Pattern::Char('g'))),
+                    Box::new(RETree::One(Pattern::Char('h')))),
+                Pattern::Char('i'),
         ))
     }
 
