@@ -18,7 +18,7 @@ fn start_compile(re: RETree) -> WrappedState {
 }
 
 /// The root of a parsed regex. A regex consists of zero or more Patterns.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum RETree {
     Concat(Vec<Pattern>),
     One(Pattern),
@@ -50,9 +50,9 @@ impl Compile for RETree {
 
 /// A Pattern is either a repeated pattern, a stored submatch, an alternation between two patterns,
 /// two patterns following each other, or a character range or set.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum Pattern {
-    Repeated(Box<RETree>, Repetition),
+    Repeated(Box<Repetition>),
     Submatch(Box<RETree>),
     Alternate(Box<RETree>, Box<RETree>),
     Char(char),
@@ -102,34 +102,28 @@ impl Compile for Pattern {
                 // TODO: Implement submatch tracking
                 p.to_state()
             }
-            Pattern::Repeated(ref p, ref rep) => {
-                let (s, sp) = p.to_state();
-                let (r, rp) = rep.repeat(s, sp);
-                (r, rp)
-            }
+            Pattern::Repeated(ref p) => p.to_state(),
         }
     }
 }
 
 /// A pattern can be specified to be repeated once (default), zero or once (?), zero or more times
 /// (*), one or more times (+) or a specific range of times ({min,max}).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum Repetition {
-    Once, // Remove?
-    ZeroOrOnce,
-    ZeroOrMore,
-    OnceOrMore,
-    Specific(u32, u32),
+    Once(Pattern), // Remove?
+    ZeroOrOnce(Pattern),
+    ZeroOrMore(Pattern),
+    OnceOrMore(Pattern),
+    Specific(Pattern, u32, Option<u32>),
 }
 
 impl Repetition {
-    fn repeat(&self,
-              s: WrappedState,
-              to_patch: Vec<WrappedState>)
-              -> (WrappedState, Vec<WrappedState>) {
+    fn to_state(&self) -> (WrappedState, Vec<WrappedState>) {
         match *self {
-            Repetition::Once => (s.clone(), vec![s]),
-            Repetition::ZeroOrOnce => {
+            Repetition::Once(ref p) => p.to_state(),
+            Repetition::ZeroOrOnce(ref p) => {
+                let (s, to_patch) = p.to_state();
                 let after = wrap_state(State {
                     out: None,
                     out1: None,
@@ -145,7 +139,8 @@ impl Repetition {
                 }
                 (before, vec![after])
             }
-            Repetition::ZeroOrMore => {
+            Repetition::ZeroOrMore(ref p) => {
+                let (s, to_patch) = p.to_state();
                 let before = wrap_state(State {
                     out: Some(s.clone()),
                     out1: None,
@@ -162,7 +157,8 @@ impl Repetition {
                 }
                 (before, vec![after])
             }
-            Repetition::OnceOrMore => {
+            Repetition::OnceOrMore(ref p) => {
+                let (s, to_patch) = p.to_state();
                 let after = wrap_state(State {
                     out: Some(s.clone()),
                     out1: None,
@@ -175,7 +171,31 @@ impl Repetition {
             }
             // Specific is 'min' concatenations of a simple state and 'max - min' concatenations of
             // a ZeroOrOnce state.
-            Repetition::Specific(_min, _max) => unimplemented!(),
+            Repetition::Specific(ref p, min, max_) => {
+                let cap = max_.unwrap_or(min) as usize;
+                assert!(cap >= min as usize);
+                let mut repetition = Vec::with_capacity(cap);
+
+                // Append the minimum required number of occurrences.
+                for _ in 0..min {
+                    repetition.push(p.clone());
+                }
+
+                // If an upper limit is set, append max-min repetitions of ZeroOrOnce states for
+                // the repeated pattern.
+                if let Some(max) = max_ {
+                    for _ in 0..(max - min) {
+                        repetition.push(
+                            Pattern::Repeated(
+                                Box::new(Repetition::ZeroOrOnce(p.clone()))));
+                    }
+                } else {
+                    // If no upper limit is set, append a ZeroOrMore state for the repeated
+                    // pattern.
+                    repetition.push(Pattern::Repeated(Box::new(Repetition::ZeroOrMore(p.clone()))));
+                }
+                RETree::Concat(repetition).to_state()
+            }
         }
     }
 }
@@ -191,35 +211,38 @@ mod tests {
                             Pattern::Alternate(Box::new(RETree::One(Pattern::Char('b'))),
                                                Box::new(RETree::One(Pattern::Char('c'))))])
     }
-    // Returns compiled form of /(ab)?(cd)*(e|f)+x(g|h)i/
+    // Returns compiled form of /(a[bc])?(cd)*(e|f)+x{1,3}(g|h)i{2,}j/
     fn simple_re1() -> RETree {
         RETree::Concat(vec!(
                 Pattern::Repeated(
-                    Box::new(
-                        RETree::Concat(vec!(
-                            Pattern::Char('a'), Pattern::Chars('b', 'c')))),
-                        Repetition::ZeroOrOnce),
+                        Box::new(
+                    Repetition::ZeroOrOnce(
+                            Pattern::Submatch(Box::new(RETree::Concat(vec!(
+                                    Pattern::Char('a'), Pattern::Chars('b', 'c')))))))),
 
                 Pattern::Repeated(
-                    Box::new(
-                        RETree::Concat(vec!(
-                            Pattern::Char('c'), Pattern::Char('d')))),
-                        Repetition::ZeroOrMore),
+                    Box::new(Repetition::ZeroOrMore(
+                            Pattern::Submatch(Box::new(RETree::Concat(vec!(
+                                    Pattern::Char('c'), Pattern::Char('d')))))))),
 
                 Pattern::Repeated(
-                    Box::new(
-                        RETree::One(
-                            Pattern::Alternate(
-                                Box::new(RETree::One(Pattern::Char('e'))),
-                                Box::new(RETree::One(Pattern::Char('f')))))),
-                        Repetition::OnceOrMore),
+                    Box::new(Repetition::OnceOrMore(
+                                Pattern::Alternate(
+                                    Box::new(RETree::One(Pattern::Char('e'))),
+                                    Box::new(RETree::One(Pattern::Char('f'))))))),
 
 
-                Pattern::Char('x'),
+                Pattern::Repeated(
+                    Box::new(Repetition::Specific(Pattern::Char('x'), 1, Some(3)))),
+
                 Pattern::Alternate(
                     Box::new(RETree::One(Pattern::Char('g'))),
                     Box::new(RETree::One(Pattern::Char('h')))),
-                Pattern::Char('i'),
+
+                Pattern::Repeated(
+                    Box::new(Repetition::Specific(Pattern::Char('i'), 2, None))),
+
+                Pattern::Char('j'),
         ))
     }
 
