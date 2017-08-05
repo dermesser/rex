@@ -56,7 +56,9 @@ enum Pattern {
     Submatch(Box<RETree>),
     Alternate(Box<RETree>, Box<RETree>),
     Char(char),
-    Chars(char, char),
+    /// A character range.
+    CharRange(char, char),
+    /// A set of characters.
     CharSet(Vec<char>),
 }
 
@@ -71,7 +73,7 @@ impl Compile for Pattern {
                 });
                 (s.clone(), vec![s])
             }
-            Pattern::Chars(from, to) => {
+            Pattern::CharRange(from, to) => {
                 let s = wrap_state(State {
                     out: None,
                     out1: None,
@@ -79,11 +81,11 @@ impl Compile for Pattern {
                 });
                 (s.clone(), vec![s])
             }
-            Pattern::CharSet(ref chars) => {
+            Pattern::CharSet(ref set) => {
                 let s = wrap_state(State {
                     out: None,
                     out1: None,
-                    matcher: wrap_matcher(Box::new(matcher::CharSetMatcher(chars.clone()))),
+                    matcher: wrap_matcher(Box::new(matcher::CharSetMatcher(set.clone()))),
                 });
                 (s.clone(), vec![s])
             }
