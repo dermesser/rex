@@ -52,9 +52,13 @@ impl Compile for RETree {
 /// two patterns following each other, or a character range or set.
 #[derive(Clone, Debug)]
 enum Pattern {
+    /// A repeated sub-pattern.
     Repeated(Box<Repetition>),
+    /// A stored submatch (TODO)
     Submatch(Box<RETree>),
-    Alternate(Box<RETree>, Box<RETree>),
+    /// An alternation between patterns (a|bb|ccc)
+    Alternate(Vec<Box<RETree>>),
+    /// A single character.
     Char(char),
     /// A character range.
     CharRange(char, char),
@@ -89,23 +93,36 @@ impl Compile for Pattern {
                 });
                 (s.clone(), vec![s])
             }
-            Pattern::Alternate(ref a1, ref a2) => {
-                let (sa1, mut sa1p) = a1.to_state();
-                let (sa2, mut sa2p) = a2.to_state();
-                let st = wrap_state(State {
-                    out: Some(sa1),
-                    out1: Some(sa2),
-                    matcher: None,
-                });
-                sa1p.append(&mut sa2p);
-                (st, sa1p)
-            }
+            Pattern::Alternate(ref r) => alternate(&r, &vec![]),
             Pattern::Submatch(ref p) => {
                 // TODO: Implement submatch tracking
                 p.to_state()
             }
             Pattern::Repeated(ref p) => p.to_state(),
         }
+    }
+}
+
+fn alternate(ps: &[Box<RETree>], to_patch: &[WrappedState]) -> (WrappedState, Vec<WrappedState>) {
+    if ps.len() == 1 {
+        let (s, sp) = ps[0].to_state();
+        for e in to_patch {
+            e.borrow_mut().patch(s.clone());
+        }
+        (s, sp)
+    } else {
+        let mut init = State {
+            out: None,
+            out1: None,
+            matcher: None,
+        };
+        let mid = ps.len() / 2;
+        let (left, mut leftpatch) = alternate(&ps[..mid], &vec![]);
+        let (right, mut rightpatch) = alternate(&ps[mid..], &vec![]);
+        init.patch(left);
+        init.patch(right);
+        leftpatch.append(&mut rightpatch);
+        (wrap_state(init), leftpatch)
     }
 }
 
