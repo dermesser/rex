@@ -107,14 +107,19 @@ impl Compile for Pattern {
     }
 }
 
-/// A pattern can be specified to be repeated once (default), zero or once (?), zero or more times
-/// (*), one or more times (+) or a specific range of times ({min,max}).
+/// A pattern can be repeated in various manners, which is represented by the pattern being wrapped
+/// in a Repetition.
+/// The inner type is a pattern, because a repetition is either concerned with only one pattern
+/// (/.?/), or a submatch (/(abc)?/).
 #[derive(Clone, Debug)]
 enum Repetition {
-    Once(Pattern), // Remove?
+    /// /P+/
     ZeroOrOnce(Pattern),
+    /// /P*/
     ZeroOrMore(Pattern),
+    /// /P+/
     OnceOrMore(Pattern),
+    /// /P{min, (max)}/
     Specific(Pattern, u32, Option<u32>),
 }
 
