@@ -126,7 +126,6 @@ enum Repetition {
 impl Repetition {
     fn to_state(&self) -> (WrappedState, Vec<WrappedState>) {
         match *self {
-            Repetition::Once(ref p) => p.to_state(),
             Repetition::ZeroOrOnce(ref p) => {
                 let (s, to_patch) = p.to_state();
                 let after = wrap_state(State {
@@ -212,18 +211,18 @@ mod tests {
 
     // /a(b|c)/
     fn simple_re0() -> RETree {
-        RETree::Concat(vec![Pattern::Chars('a', 'a'),
-                            Pattern::Alternate(Box::new(RETree::One(Pattern::Char('b'))),
-                                               Box::new(RETree::One(Pattern::Char('c'))))])
+        RETree::Concat(vec![Pattern::CharRange('a', 'a'),
+                            Pattern::Alternate(vec![Box::new(RETree::One(Pattern::Char('b'))),
+                                                    Box::new(RETree::One(Pattern::Char('c')))])])
     }
-    // Returns compiled form of /(a[bc])?(cd)*(e|f)+x{1,3}(g|h)i{2,}j/
+    // Returns compiled form of /(a[bc])?(cd)*(e|f)+x{1,3}(g|hh|i)j{2,}k/
     fn simple_re1() -> RETree {
         RETree::Concat(vec!(
                 Pattern::Repeated(
                         Box::new(
                     Repetition::ZeroOrOnce(
                             Pattern::Submatch(Box::new(RETree::Concat(vec!(
-                                    Pattern::Char('a'), Pattern::Chars('b', 'c')))))))),
+                                    Pattern::Char('a'), Pattern::CharRange('b', 'c')))))))),
 
                 Pattern::Repeated(
                     Box::new(Repetition::ZeroOrMore(
@@ -232,22 +231,24 @@ mod tests {
 
                 Pattern::Repeated(
                     Box::new(Repetition::OnceOrMore(
-                                Pattern::Alternate(
+                                Pattern::Alternate(vec!(
                                     Box::new(RETree::One(Pattern::Char('e'))),
-                                    Box::new(RETree::One(Pattern::Char('f'))))))),
+                                    Box::new(RETree::One(Pattern::Char('f')))))))),
 
 
                 Pattern::Repeated(
                     Box::new(Repetition::Specific(Pattern::Char('x'), 1, Some(3)))),
 
-                Pattern::Alternate(
+                Pattern::Alternate(vec!(
                     Box::new(RETree::One(Pattern::Char('g'))),
-                    Box::new(RETree::One(Pattern::Char('h')))),
+                    Box::new(RETree::One(Pattern::Repeated(
+                                Box::new(Repetition::Specific(Pattern::Char('h'), 2, Some(2)))))),
+                    Box::new(RETree::One(Pattern::Char('i'))))),
 
                 Pattern::Repeated(
-                    Box::new(Repetition::Specific(Pattern::Char('i'), 2, None))),
+                    Box::new(Repetition::Specific(Pattern::Char('j'), 2, None))),
 
-                Pattern::Char('j'),
+                Pattern::Char('k'),
         ))
     }
 
