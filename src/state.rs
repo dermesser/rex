@@ -57,7 +57,7 @@ impl State {
     }
 
     /// Checks the matchee against the matcher. Returns None if the node doesn't contain a matcher.
-    pub fn matches(&self, me: &Matchee) -> Option<bool> {
+    pub fn matches(&self, me: &Matchee) -> Option<(bool, usize)> {
         self.matcher.as_ref().map(|m| m.matches(me))
     }
 
