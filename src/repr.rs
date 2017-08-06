@@ -60,6 +60,8 @@ enum Pattern {
     Alternate(Vec<Box<RETree>>),
     /// A single character.
     Char(char),
+    /// A string.
+    Str(String),
     /// A character range.
     CharRange(char, char),
     /// A set of characters.
@@ -74,6 +76,14 @@ impl Compile for Pattern {
                     out: None,
                     out1: None,
                     matcher: wrap_matcher(Box::new(matcher::CharMatcher(c))),
+                });
+                (s.clone(), vec![s])
+            }
+            Pattern::Str(ref s) => {
+                let s = wrap_state(State {
+                    out: None,
+                    out1: None,
+                    matcher: wrap_matcher(Box::new(matcher::StringMatcher::new(s))),
                 });
                 (s.clone(), vec![s])
             }
@@ -234,7 +244,7 @@ mod tests {
                             Pattern::Alternate(vec![Box::new(RETree::One(Pattern::Char('b'))),
                                                     Box::new(RETree::One(Pattern::Char('c')))])])
     }
-    // Returns compiled form of /(a[bc])?(cd)*(e|f)+x{1,3}(g|hh|i)j{2,}k/
+    // Returns compiled form of /(a[bc])?(cd)*(e|f)+x{1,3}(g|hh|i)j{2,}klm/
     fn simple_re1() -> RETree {
         RETree::Concat(vec!(
                 Pattern::Repeated(
@@ -267,7 +277,7 @@ mod tests {
                 Pattern::Repeated(
                     Box::new(Repetition::Specific(Pattern::Char('j'), 2, None))),
 
-                Pattern::Char('k'),
+                Pattern::Str("klm".to_string()),
         ))
     }
 

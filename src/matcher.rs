@@ -61,7 +61,7 @@ impl Matcher for CharMatcher {
 #[derive(Debug)]
 pub struct StringMatcher(pub Vec<char>);
 impl StringMatcher {
-    fn new(s: &str) -> StringMatcher {
+    pub fn new(s: &str) -> StringMatcher {
         StringMatcher(Vec::from_iter(s.chars()))
     }
 }
