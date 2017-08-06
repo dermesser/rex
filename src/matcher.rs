@@ -6,10 +6,15 @@ use std::iter::FromIterator;
 use std::rc::Rc;
 use std::fmt::Debug;
 
-/// Matchee contains a character and position to match.
+/// Matchee contains a character and position to match. It's used by the matching logic to check
+/// whether a certain position within a string is matched by a matcher. The driving logic is
+/// external to this, however (except for the advance() method).
+#[derive(Clone)]
 pub struct Matchee {
-    /// A random-addressable string to be matched. This is the overall string.
-    src: Vec<char>,
+    /// A random-addressable string to be matched. This is the overall string. It's wrapped inside
+    /// a shared pointer because during the matching process, there may be different Matchees
+    /// at different positions within the source.
+    src: Rc<Vec<char>>,
     /// Current index within the matched string.
     ix: usize,
 }
@@ -17,16 +22,27 @@ pub struct Matchee {
 impl Matchee {
     fn from_string(s: &str) -> Matchee {
         Matchee {
-            src: Vec::from_iter(s.chars()),
+            src: Rc::new(Vec::from_iter(s.chars())),
             ix: 0,
         }
     }
     fn current(&self) -> char {
         self.src[self.ix]
     }
+    /// advance takes the result of a matcher and advances the cursor in the Matchee if there was a
+    /// match.
+    fn advance(&mut self, result: (bool, usize)) -> bool {
+        if !result.0 {
+            false
+        } else {
+            self.ix += result.1;
+            true
+        }
+    }
 }
 
-/// Matcher matches characters.
+/// A Matcher matches parts of a Matchee (where a Matchee is a string to be matched). While
+/// matching, a matcher may consume zero or more characters of the string.
 pub trait Matcher: Debug {
     /// Returns whether the Matchee matches, and how many characters were matched (if a match
     /// occurred). For example, a character matcher consumes one character, whereas an anchor
@@ -71,6 +87,7 @@ impl Matcher for CharSetMatcher {
     }
 }
 
+/// AnyMatcher matches any character.
 #[derive(Debug)]
 pub struct AnyMatcher;
 impl Matcher for AnyMatcher {
@@ -79,6 +96,7 @@ impl Matcher for AnyMatcher {
     }
 }
 
+/// AnchorMatcher matches the beginning or end of a string. It doesn't consume a character.
 #[derive(Debug)]
 pub enum AnchorMatcher {
     Begin,
@@ -95,4 +113,37 @@ impl Matcher for AnchorMatcher {
 
 pub fn wrap_matcher(m: Box<Matcher>) -> Option<Rc<Box<Matcher>>> {
     Some(Rc::new(m))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_char_matcher() {
+        let m1 = CharMatcher('a');
+        let m2 = CharMatcher('b');
+        let mut me = Matchee::from_string("xabc");
+        me.ix = 1;
+        assert_eq!(m1.matches(&me), (true, 1));
+        assert_eq!(m2.matches(&me), (false, 1));
+        me.ix += 1;
+        assert_eq!(m2.matches(&me), (true, 1));
+    }
+
+    #[test]
+    fn test_str_matcher() {
+        let m1 = StringMatcher::new("abc");
+        let m2 = StringMatcher::new("def");
+        let mut me = Matchee::from_string("xabcydef");
+        assert_eq!(m1.matches(&me), (false, 3));
+        assert!(!me.advance((false, 3)));
+        me.ix += 1;
+        assert_eq!(m1.matches(&me), (true, 3));
+        assert_eq!(m2.matches(&me), (false, 3));
+        me.ix += 3;
+        assert_eq!(m2.matches(&me), (false, 3));
+        me.ix += 1;
+        assert_eq!(m2.matches(&me), (true, 3));
+    }
 }
