@@ -73,6 +73,14 @@ pub enum Pattern {
     CharRange(char, char),
     /// A set of characters.
     CharSet(Vec<char>),
+    /// A position anchor.
+    Anchor(AnchorLocation),
+}
+
+#[derive(Clone, Debug)]
+pub enum AnchorLocation {
+    Begin,
+    End,
 }
 
 impl Compile for Pattern {
@@ -135,6 +143,20 @@ impl Compile for Pattern {
                 (before, vec![after])
             }
             Pattern::Repeated(ref p) => p.to_state(),
+            Pattern::Anchor(ref loc) => {
+                let mut m = matcher::AnchorMatcher::Begin;
+                match loc {
+                    &AnchorLocation::End => m = matcher::AnchorMatcher::End,
+                    _ => (),
+                };
+                let s = wrap_state(State {
+                    out: None,
+                    out1: None,
+                    matcher: wrap_matcher(Box::new(m)),
+                    sub: None,
+                });
+                (s.clone(), vec![s])
+            }
         }
     }
 }

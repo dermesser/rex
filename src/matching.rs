@@ -156,7 +156,7 @@ mod tests {
     use super::*;
     use repr::*;
 
-    // /a(b|c)(xx)?/
+    // /a(b|c)(xx)?$/
     fn simple_re0() -> RETree {
         RETree::Concat(vec![
                        Pattern::CharRange('a', 'a'),
@@ -170,12 +170,13 @@ mod tests {
                                    Pattern::Repeated(Box::new(
                                            Repetition::ZeroOrOnce(
                                                Pattern::Str("xx".to_string()))))))),
+                       Pattern::Anchor(AnchorLocation::End),
         ])
     }
 
     #[test]
     fn test_match_simple() {
-        println!("{:?}", compile_and_match(simple_re0(), "bac"));
+        println!("{:?}", compile_and_match(simple_re0(), "acxx"));
         let dot = state::dot(start_compile(simple_re0()));
         println!("digraph st {{ {} }}", dot);
     }
