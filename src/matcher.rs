@@ -9,7 +9,7 @@ use std::fmt::Debug;
 /// Matchee contains a character and position to match. It's used by the matching logic to check
 /// whether a certain position within a string is matched by a matcher. The driving logic is
 /// external to this, however (except for the advance() method).
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Matchee {
     /// A random-addressable string to be matched. This is the overall string. It's wrapped inside
     /// a shared pointer because during the matching process, there may be different Matchees
@@ -20,7 +20,7 @@ pub struct Matchee {
 }
 
 impl Matchee {
-    fn from_string(s: &str) -> Matchee {
+    pub fn from_string(s: &str) -> Matchee {
         Matchee {
             src: Rc::new(Vec::from_iter(s.chars())),
             ix: 0,
@@ -29,15 +29,16 @@ impl Matchee {
     fn current(&self) -> char {
         self.src[self.ix]
     }
+    pub fn pos(&self) -> usize {
+        self.ix
+    }
+    pub fn len(&self) -> usize {
+        self.src.len()
+    }
     /// advance takes the result of a matcher and advances the cursor in the Matchee if there was a
     /// match.
-    fn advance(&mut self, result: (bool, usize)) -> bool {
-        if !result.0 {
-            false
-        } else {
-            self.ix += result.1;
-            true
-        }
+    pub fn advance(&mut self, n: usize) {
+        self.ix += n;
     }
 }
 
@@ -67,7 +68,11 @@ impl StringMatcher {
 }
 impl Matcher for StringMatcher {
     fn matches(&self, m: &Matchee) -> (bool, usize) {
-        (m.src[m.ix..m.ix + self.0.len()].starts_with(&self.0), self.0.len())
+        if m.ix + self.0.len() <= m.src.len() {
+            (m.src[m.ix..m.ix + self.0.len()].starts_with(&self.0), self.0.len())
+        } else {
+            (false, self.0.len())
+        }
     }
 }
 
@@ -137,13 +142,12 @@ mod tests {
         let m2 = StringMatcher::new("def");
         let mut me = Matchee::from_string("xabcydef");
         assert_eq!(m1.matches(&me), (false, 3));
-        assert!(!me.advance((false, 3)));
-        me.ix += 1;
+        me.advance(1);
         assert_eq!(m1.matches(&me), (true, 3));
         assert_eq!(m2.matches(&me), (false, 3));
-        me.ix += 3;
+        me.advance(3);
         assert_eq!(m2.matches(&me), (false, 3));
-        me.ix += 1;
+        me.advance(1);
         assert_eq!(m2.matches(&me), (true, 3));
     }
 }
