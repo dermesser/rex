@@ -40,6 +40,9 @@ impl Matchee {
     pub fn advance(&mut self, n: usize) {
         self.ix += n;
     }
+    pub fn reset(&mut self, n: usize) {
+        self.ix = n;
+    }
 }
 
 /// A Matcher matches parts of a Matchee (where a Matchee is a string to be matched). While

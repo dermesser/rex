@@ -45,28 +45,37 @@ impl MatchState {
         self.matchee.advance(advance);
         self.node = next;
     }
+    fn reset(&mut self, new_start: usize) {
+        self.submatches = Rc::new(RefCell::new(vec![None; self.matchee.len()]));
+        self.submatches_todo.to_mut().clear();
+        self.matchee.reset(new_start);
+    }
 }
 
 /// Compiles a parsed regular expression into the internal state graph and matches s against it.
 /// Returns whether the string matched as well as a list of submatches. The first submatch is the
-/// entire string.
-///
-/// There's an implicit anchor at the beginning of the string, but not at the end.
+/// entire matched string. A submatch is a tuple of (start, end), where end is the index of the
+/// first character that isn't part of the submatch anymore (i.e. [start, end)).
 fn compile_and_match(re: repr::RETree, s: &str) -> (bool, Vec<(usize, usize)>) {
     let ws = repr::start_compile(re);
-    let ms = MatchState::new(s, ws);
-    match start_match(ms) {
-        (false, _) => (false, vec![]),
-        (true, matchpos) => {
-            let mut matches = vec![];
-            for i in 0..matchpos.len() {
-                if matchpos[i].is_some() {
-                    matches.push((i, matchpos[i].unwrap()));
+    let mut ms = MatchState::new(s, ws);
+
+    for i in 0..s.len() {
+        ms.reset(i);
+        match start_match(ms.clone()) {
+            (false, _) => continue,
+            (true, matchpos) => {
+                let mut matches = vec![];
+                for i in 0..matchpos.len() {
+                    if matchpos[i].is_some() {
+                        matches.push((i, matchpos[i].unwrap()));
+                    }
                 }
+                return (true, matches);
             }
-            (true, matches)
         }
     }
+    (false, vec![])
 }
 
 fn start_match(m: MatchState) -> (bool, Vec<Option<usize>>) {
@@ -176,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_match_simple() {
-        println!("{:?}", compile_and_match(simple_re0(), "acxx"));
+        println!("{:?}", compile_and_match(simple_re0(), "____acxx"));
         let dot = state::dot(start_compile(simple_re0()));
         println!("digraph st {{ {} }}", dot);
     }
