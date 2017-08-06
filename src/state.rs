@@ -73,6 +73,20 @@ impl State {
     pub fn next_states(&self) -> (Option<WrappedState>, Option<WrappedState>) {
         (self.out.clone(), self.out1.clone())
     }
+
+    fn to_string(&self) -> String {
+        format!("m:{} sub:{}",
+                if let Some(ref m) = self.matcher {
+                    format!("{:?}", m)
+                } else {
+                    "_".to_string()
+                },
+                if let Some(ref s) = self.sub {
+                    format!("{:?}", s)
+                } else {
+                    "".to_string()
+                })
+    }
 }
 
 /// dot converts a graph starting with s into a Dot graph.
@@ -97,13 +111,11 @@ pub fn dot(s: WrappedState) -> String {
             if let &Some(ref o) = next {
                 let nextid = format!("{:p}", o.as_ptr());
                 write!(&mut result,
-                       "\"{} ({:?}, {:?})\" -> \"{} ({:?}, {:?})\";\n",
+                       "\"{} {}\" -> \"{} {}\";\n",
                        id,
-                       node.borrow().matcher,
-                       node.borrow().sub,
+                       node.borrow().to_string(),
                        nextid,
-                       o.borrow().matcher,
-                       o.borrow().sub)
+                       o.borrow().to_string())
                     .unwrap();
 
                 if !visited.contains(&nextid) {
