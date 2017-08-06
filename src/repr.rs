@@ -3,23 +3,30 @@
 #![allow(dead_code)]
 
 use matcher::{self, wrap_matcher};
-use state::{wrap_state, Compile, State, WrappedState};
+use state::{wrap_state, Compile, State, Submatch, WrappedState};
 
 /// start_compile takes a parsed regex as RETree and returns the first node of a directed graph
 /// representing the regex.
-fn start_compile(re: RETree) -> WrappedState {
+pub fn start_compile(re: RETree) -> WrappedState {
     let (s, sp) = re.to_state();
-    let end = wrap_state(State::default());
+
+    let mut before = State::default();
+    before.sub = Some(Submatch::Start);
+    before.out = Some(s);
+    let mut end = State::default();
+    end.sub = Some(Submatch::End);
+
+    let endw = wrap_state(end);
     // Connect all loose ends with the final node.
     for p in sp {
-        p.borrow_mut().patch(end.clone());
+        p.borrow_mut().patch(endw.clone());
     }
-    s
+    wrap_state(before)
 }
 
 /// The root of a parsed regex. A regex consists of zero or more Patterns.
 #[derive(Clone, Debug)]
-enum RETree {
+pub enum RETree {
     Concat(Vec<Pattern>),
     One(Pattern),
 }
@@ -51,10 +58,10 @@ impl Compile for RETree {
 /// A Pattern is either a repeated pattern, a stored submatch, an alternation between two patterns,
 /// two patterns following each other, or a character range or set.
 #[derive(Clone, Debug)]
-enum Pattern {
+pub enum Pattern {
     /// A repeated sub-pattern.
     Repeated(Box<Repetition>),
-    /// A stored submatch (TODO)
+    /// A stored submatch.
     Submatch(Box<RETree>),
     /// An alternation between patterns (a|bb|ccc)
     Alternate(Vec<Box<RETree>>),
@@ -76,6 +83,7 @@ impl Compile for Pattern {
                     out: None,
                     out1: None,
                     matcher: wrap_matcher(Box::new(matcher::CharMatcher(c))),
+                    sub: None,
                 });
                 (s.clone(), vec![s])
             }
@@ -84,6 +92,7 @@ impl Compile for Pattern {
                     out: None,
                     out1: None,
                     matcher: wrap_matcher(Box::new(matcher::StringMatcher::new(s))),
+                    sub: None,
                 });
                 (s.clone(), vec![s])
             }
@@ -92,6 +101,7 @@ impl Compile for Pattern {
                     out: None,
                     out1: None,
                     matcher: wrap_matcher(Box::new(matcher::CharRangeMatcher(from, to))),
+                    sub: None,
                 });
                 (s.clone(), vec![s])
             }
@@ -100,13 +110,29 @@ impl Compile for Pattern {
                     out: None,
                     out1: None,
                     matcher: wrap_matcher(Box::new(matcher::CharSetMatcher(set.clone()))),
+                    sub: None,
                 });
                 (s.clone(), vec![s])
             }
             Pattern::Alternate(ref r) => alternate(&r, &vec![]),
             Pattern::Submatch(ref p) => {
-                // TODO: Implement submatch tracking
-                p.to_state()
+                let (s, sp) = p.to_state();
+                let before = wrap_state(State {
+                    out: Some(s),
+                    out1: None,
+                    matcher: None,
+                    sub: Some(Submatch::Start),
+                });
+                let after = wrap_state(State {
+                    out: None,
+                    out1: None,
+                    matcher: None,
+                    sub: Some(Submatch::End),
+                });
+                for p in sp {
+                    p.borrow_mut().patch(after.clone());
+                }
+                (before, vec![after])
             }
             Pattern::Repeated(ref p) => p.to_state(),
         }
@@ -125,6 +151,7 @@ fn alternate(ps: &[Box<RETree>], to_patch: &[WrappedState]) -> (WrappedState, Ve
             out: None,
             out1: None,
             matcher: None,
+            sub: None,
         };
         let mid = ps.len() / 2;
         let (left, mut leftpatch) = alternate(&ps[..mid], &vec![]);
@@ -141,7 +168,7 @@ fn alternate(ps: &[Box<RETree>], to_patch: &[WrappedState]) -> (WrappedState, Ve
 /// The inner type is a pattern, because a repetition is either concerned with only one pattern
 /// (/.?/), or a submatch (/(abc)?/).
 #[derive(Clone, Debug)]
-enum Repetition {
+pub enum Repetition {
     /// /P+/
     ZeroOrOnce(Pattern),
     /// /P*/
@@ -161,11 +188,13 @@ impl Repetition {
                     out: None,
                     out1: None,
                     matcher: None,
+                    sub: None,
                 });
                 let before = wrap_state(State {
                     out: Some(s.clone()),
                     out1: Some(after.clone()),
                     matcher: None,
+                    sub: None,
                 });
                 for p in to_patch {
                     p.borrow_mut().patch(after.clone());
@@ -178,11 +207,13 @@ impl Repetition {
                     out: Some(s.clone()),
                     out1: None,
                     matcher: None,
+                    sub: None,
                 });
                 let after = wrap_state(State {
                     out: Some(s.clone()),
                     out1: None,
                     matcher: None,
+                    sub: None,
                 });
                 before.borrow_mut().patch(after.clone());
                 for p in to_patch {
@@ -196,6 +227,7 @@ impl Repetition {
                     out: Some(s.clone()),
                     out1: None,
                     matcher: None,
+                    sub: None,
                 });
                 for p in to_patch {
                     p.borrow_mut().patch(after.clone());
@@ -258,11 +290,13 @@ mod tests {
                             Pattern::Submatch(Box::new(RETree::Concat(vec!(
                                     Pattern::Char('c'), Pattern::Char('d')))))))),
 
-                Pattern::Repeated(
-                    Box::new(Repetition::OnceOrMore(
-                                Pattern::Alternate(vec!(
-                                    Box::new(RETree::One(Pattern::Char('e'))),
-                                    Box::new(RETree::One(Pattern::Char('f')))))))),
+                Pattern::Submatch(
+                    Box::new(RETree::One(
+                            Pattern::Repeated(
+                                Box::new(Repetition::OnceOrMore(
+                                        Pattern::Alternate(vec!(
+                                                Box::new(RETree::One(Pattern::Char('e'))),
+                                                Box::new(RETree::One(Pattern::Char('f'))))))))))),
 
 
                 Pattern::Repeated(
@@ -283,8 +317,6 @@ mod tests {
 
     #[test]
     fn test_re1() {
-        println!("{:?}", simple_re1());
-        // println!("{:?}", start_compile(simple_re1()));
         // println!("{:?}", start_compile(simple_re0()));
         let dot = dot(start_compile(simple_re1()));
         println!("digraph st {{ {} }}", dot);

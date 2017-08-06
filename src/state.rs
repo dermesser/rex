@@ -28,6 +28,14 @@ pub struct State {
     pub out1: Option<WrappedState>,
     // If matcher is none, this is an "empty" state.
     pub matcher: Option<Rc<Box<Matcher>>>,
+    // Tells the matching logic to record the start or end of a submatch.
+    pub sub: Option<Submatch>,
+}
+
+#[derive(Clone, Debug)]
+pub enum Submatch {
+    Start,
+    End,
 }
 
 /// WrappedState is a shared pointer to a state node.
@@ -89,11 +97,13 @@ pub fn dot(s: WrappedState) -> String {
             if let &Some(ref o) = next {
                 let nextid = format!("{:p}", o.as_ptr());
                 write!(&mut result,
-                       "\"{} {:?}\" -> \"{} {:?}\";\n",
+                       "\"{} ({:?}, {:?})\" -> \"{} ({:?}, {:?})\";\n",
                        id,
                        node.borrow().matcher,
+                       node.borrow().sub,
                        nextid,
-                       o.borrow().matcher)
+                       o.borrow().matcher,
+                       o.borrow().sub)
                     .unwrap();
 
                 if !visited.contains(&nextid) {
