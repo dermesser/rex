@@ -1,15 +1,16 @@
 //! This module contains the logic matching a compiled regular expression (a State graph) against a
 //! string.
 
+#![allow(dead_code)]
+
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::LinkedList;
 use std::mem;
 use std::rc::Rc;
 
 use repr;
-use state::{self, State, WrappedState, Submatch};
-use matcher::{self, Matcher, Matchee};
+use state::{WrappedState, Submatch};
+use matcher::{Matchee};
 
 #[derive(Clone, Debug)]
 struct MatchState {
@@ -123,6 +124,7 @@ fn start_match(m: MatchState) -> (bool, Vec<Option<usize>>) {
             if next1.is_none() && next2.is_none() && st.matchee.pos() > longestmatch {
                 ismatch = true;
                 matches = st.submatches.borrow().clone();
+                longestmatch = st.matchee.pos();
                 continue;
             }
             let mut advance_by = 0;
@@ -164,6 +166,7 @@ fn start_match(m: MatchState) -> (bool, Vec<Option<usize>>) {
 mod tests {
     use super::*;
     use repr::*;
+    use state::*;
 
     // /a(b|c)(xx)?$/
     fn simple_re0() -> RETree {
@@ -186,7 +189,7 @@ mod tests {
     #[test]
     fn test_match_simple() {
         println!("{:?}", compile_and_match(simple_re0(), "____acxx"));
-        let dot = state::dot(start_compile(simple_re0()));
+        let dot = dot(start_compile(simple_re0()));
         println!("digraph st {{ {} }}", dot);
     }
 }
