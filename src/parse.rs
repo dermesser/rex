@@ -145,37 +145,6 @@ fn parse_re<'a>(s: ParseState<'a>) -> Result<Pattern, String> {
     s.ok(st.to_retree())
 }
 
-// flatten_alternate tries to flatten a nested Alternate structure: Alternate(A, Alternate(B, C))
-// -> Alternate(A, B, C)
-fn flatten_alternate(mut re: RETree) -> RETree {
-    let mut alts = vec![];
-    let mut pats = vec![];
-
-    match re {
-        RETree::One(p) => pats.push(p),
-        RETree::Concat(ref mut ps) => pats.append(ps),
-    }
-
-    loop {
-        if let Some(pat) = pats.pop() {
-            match pat {
-                Pattern::Alternate(v) => {
-                    for mut a in v.into_iter() {
-                        match *a {
-                            RETree::One(p) => alts.push(RETree::One(p)),
-                            RETree::Concat(ref mut ps) => pats.append(ps),
-                        }
-                    }
-                }
-                _ => {}
-            }
-        } else {
-            break;
-        }
-    }
-    RETree::Concat(pats)
-}
-
 // parses the content of character classes like [abc] or [ab-] or [a-z] or [a-zA-E].
 fn parse_char_set<'a>(s: ParseState<'a>) -> Result<Pattern, String> {
     if s[0] == '-' || s[s.len() - 1] == '-' || !s[..].contains(&'-') {
@@ -203,6 +172,7 @@ fn parse_char_set<'a>(s: ParseState<'a>) -> Result<Pattern, String> {
 
 const ROUND_PARENS: (char, char) = ('(', ')');
 const SQUARE_BRACKETS: (char, char) = ('[', ']');
+const CURLY_BRACKETS: (char, char) = ('{', '}');
 
 // find_closing_paren returns the index of the parenthesis closing the opening parenthesis at the
 // beginning of the state's string.
@@ -220,6 +190,25 @@ fn find_closing_paren<'a>(s: ParseState<'a>, parens: (char, char)) -> Option<usi
         }
     }
     None
+}
+
+// flatten_alternate takes the alternatives in a Pattern::Alternate and reduces the nesting
+// recursively.
+fn flatten_alternate(p: Pattern) -> Pattern {
+    Pattern::Alternate(_flatten_alternate(p))
+}
+
+fn _flatten_alternate(p: Pattern) -> Vec<Pattern> {
+    match p {
+        Pattern::Alternate(a) => {
+            let mut alternatives = vec![];
+            for alt in a.into_iter() {
+                alternatives.append(&mut _flatten_alternate(alt));
+            }
+            alternatives
+        }
+        p_ => vec![p_],
+    }
 }
 
 #[cfg(test)]
