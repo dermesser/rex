@@ -3,6 +3,8 @@
 
 #![allow(dead_code)]
 
+use std::ops::{Index, Range, RangeFull};
+
 use repr::{self, RETree, Pattern, AnchorLocation, Repetition};
 
 struct ParseStack {
@@ -30,64 +32,112 @@ impl ParseStack {
     }
 }
 
-fn err<T>(s: &str, pos: usize) -> Result<T, String> {
-    Err(format!("{} at {}", s, pos))
+/// State of the parser, quite a simple struct. It contains the current substring that a parser
+/// function is concerned with as well as the position within the overall parsed string, so that
+/// useful positions can be reported to users. In addition, it provides functions to create
+/// "sub-ParseStates" containing a substring of its current string.
+/// 
+/// It also supports indexing by ranges and index.
+struct ParseState<'a> {
+    /// The string to parse. This may be a substring of the "overall" matched string.
+    src: &'a [char],
+    /// The position within the overall string (for error reporting).
+    pos: usize,
 }
 
-fn ok<T>(ok: T) -> Result<T, String> {
-    Ok(ok)
+impl<'a> ParseState<'a> {
+    fn new(s: &'a [char]) -> ParseState<'a> {
+        ParseState { src: s, pos: 0 }
+    }
+    fn from(&self, count: usize) -> ParseState<'a> {
+        self.sub(count, self.len())
+    }
+    fn sub(&self, from: usize, to: usize) -> ParseState<'a> {
+        ParseState {
+            src: &self.src[from..to],
+            pos: self.pos + from,
+        }
+    }
+    fn len(&self) -> usize {
+        self.src.len()
+    }
+    fn err<T>(&self, s: &str, i: usize) -> Result<T, String> {
+        Err(format!("{} (at {})", s, self.pos + i))
+    }
+    fn ok<T>(&self, ok: T) -> Result<T, String> {
+        Ok(ok)
+    }
+}
+
+impl<'a> Index<Range<usize>> for ParseState<'a> {
+    type Output = [char];
+    fn index(&self, r: Range<usize>) -> &Self::Output {
+        &self.src[r]
+    }
+}
+impl<'a> Index<RangeFull> for ParseState<'a> {
+    type Output = [char];
+    fn index(&self, r: RangeFull) -> &Self::Output {
+        &self.src[r]
+    }
+}
+impl<'a> Index<usize> for ParseState<'a> {
+    type Output = char;
+    fn index(&self, i: usize) -> &Self::Output {
+        &self.src[i]
+    }
 }
 
 fn parse_enter(s: &str) -> Result<RETree, String> {
     let src: Vec<char> = s.chars().collect();
-    parse_re(&src)
+    parse_re(ParseState::new(&src))
 }
 
-fn parse_re(src: &[char]) -> Result<RETree, String> {
-    let mut s = ParseStack::new();
+fn parse_re<'a>(s: ParseState<'a>) -> Result<RETree, String> {
+    let mut st = ParseStack::new();
     let mut i = 0;
     loop {
-        if i == src.len() {
+        if i == s.len() {
             break;
         }
 
-        println!("{:?} {}", src, i);
-        match src[i] {
+        println!("{:?} {}", &s[..], i);
+        match s[i] {
+            c if c.is_alphanumeric() => {
+                st.push(Pattern::Char(c));
+                i += 1;
+            }
+            '|' => {
+                let rest = parse_re(s.from(i + 1))?;
+                let left = st.to_retree();
+                st = ParseStack::new();
+                st.push(Pattern::Alternate(vec![Box::new(left), Box::new(rest)]));
+                i = s.len();
+            }
             '(' => {
-                if let Some(end) = find_closing_paren(&src[i..], ROUND_PARENS) {
-                    s.push(Pattern::Submatch(Box::new(parse_re(&src[i + 1..i + end])?)));
+                if let Some(end) = find_closing_paren(s.from(i), ROUND_PARENS) {
+                    st.push(Pattern::Submatch(Box::new(parse_re(s.sub(i + 1, i + end))?)));
                     i += end;
                 } else {
-                    return err("couldn't find closing parenthesis", i);
+                    return s.err("couldn't find closing parenthesis", i);
                 }
             }
             ')' => i += 1,
             '[' => {
-                if let Some(end) = find_closing_paren(&src[i..], SQUARE_BRACKETS) {
-                    s.push(parse_char_set(&src[i + 1..end])?);
+                if let Some(end) = find_closing_paren(s.from(i), SQUARE_BRACKETS) {
+                    st.push(parse_char_set(s.sub(i + 1, end))?);
                     i = end;
                 } else {
-                    return err("couldn't find closing square bracket", i);
+                    return s.err("couldn't find closing square bracket", i);
                 }
             }
             ']' => i += 1,
-            c if c.is_alphanumeric() => {
-                s.push(Pattern::Char(c));
-                i += 1;
-            }
-            '|' => {
-                let rest = parse_re(&src[i + 1..])?;
-                let left = s.to_retree();
-                s = ParseStack::new();
-                s.push(Pattern::Alternate(vec![Box::new(left), Box::new(rest)]));
-                i = src.len();
-            }
             _ => {
-                return err("unimplemented pattern", i);
+                return s.err("unimplemented pattern", i);
             }
         }
     }
-    ok(s.to_retree())
+    s.ok(st.to_retree())
 }
 
 // flatten_alternate tries to flatten a nested Alternate structure: Alternate(A, Alternate(B, C))
@@ -115,42 +165,42 @@ fn flatten_alternate(mut re: RETree) -> RETree {
                 _ => {}
             }
         } else {
-            break
+            break;
         }
     }
     RETree::Concat(pats)
 }
 
 // parses the content of character classes like [abc] or [ab-] or [a-z] or [a-zA-E].
-fn parse_char_set(src: &[char]) -> Result<Pattern, String> {
-    if src.starts_with(&['-']) || src.ends_with(&['-']) || !src.contains(&'-') {
-        return ok(Pattern::CharSet(Vec::from(src)));
-    } else if src.contains(&'-') {
+fn parse_char_set<'a>(s: ParseState<'a>) -> Result<Pattern, String> {
+    if s[0] == '-' || s[s.len() - 1] == '-' || !s[..].contains(&'-') {
+        return s.ok(Pattern::CharSet(Vec::from(&s[..])));
+    } else if s[..].contains(&'-') {
         // dash(es) somewhere in the middle.
         let mut set = vec![];
         let mut i = 0;
         loop {
-            if i >= src.len() {
+            if i >= s.len() {
                 break;
             }
-            if i < src.len() - 1 && src[i + 1] == '-' && src.len() > i + 2 {
-                set.push(Pattern::CharRange(src[i], src[i + 2]));
+            if i < s.len() - 1 && s[i + 1] == '-' && s.len() > i + 2 {
+                set.push(Pattern::CharRange(s[i], s[i + 2]));
                 i += 3;
             } else {
-                set.push(Pattern::Char(src[i]));
+                set.push(Pattern::Char(s[i]));
                 i += 1;
             }
         }
-        return ok(Pattern::Alternate(set.into_iter().map(|p| Box::new(RETree::One(p))).collect()));
+        return s.ok(Pattern::Alternate(set.into_iter().map(|p| Box::new(RETree::One(p))).collect()));
     }
-    err("unrecognized char set", 0)
+    s.err("unrecognized char set", 0)
 }
 
 const ROUND_PARENS: (char, char) = ('(', ')');
 const SQUARE_BRACKETS: (char, char) = ('[', ']');
 
 // returns the index of the parenthesis closing the opening parenthesis at s[0].
-fn find_closing_paren(s: &[char], parens: (char, char)) -> Option<usize> {
+fn find_closing_paren<'a>(s: ParseState<'a>, parens: (char, char)) -> Option<usize> {
     let mut count = 0;
     for i in 0..s.len() {
         if s[i] == parens.0 {
@@ -176,7 +226,8 @@ mod tests {
     fn test_find_closing_paren() {
         for case in &[("(abc)de", 4), ("()a", 1), ("(abcd)", 5)] {
             let src: Vec<char> = case.0.chars().collect();
-            assert_eq!(find_closing_paren(src.as_ref(), ROUND_PARENS), Some(case.1));
+            assert_eq!(find_closing_paren(ParseState::new(src.as_ref()), ROUND_PARENS),
+                       Some(case.1));
         }
     }
 
