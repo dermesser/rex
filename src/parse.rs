@@ -1,5 +1,6 @@
 //! This module contains functionality for parsing a regular expression into the intermediate
-//! representation in repr.rs (from which it is compiled into a state graph).
+//! representation in repr.rs (from which it is compiled into a state graph), and optimizing that
+//! intermediate representation.
 
 #![allow(dead_code)]
 
