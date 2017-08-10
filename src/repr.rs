@@ -7,7 +7,7 @@ use state::{wrap_state, Compile, State, Submatch, WrappedState};
 
 /// start_compile takes a parsed regex as RETree and returns the first node of a directed graph
 /// representing the regex.
-pub fn start_compile(re: RETree) -> WrappedState {
+pub fn start_compile(re: &Pattern) -> WrappedState {
     let (s, sp) = re.to_state();
 
     let mut before = State::default();
@@ -24,47 +24,17 @@ pub fn start_compile(re: RETree) -> WrappedState {
     wrap_state(before)
 }
 
-/// The root of a parsed regex. A regex consists of zero or more Patterns.
-#[derive(Clone, Debug)]
-pub enum RETree {
-    Concat(Vec<Pattern>),
-    One(Pattern),
-}
-
-impl Compile for RETree {
-    fn to_state(&self) -> (WrappedState, Vec<WrappedState>) {
-        match *self {
-            RETree::One(ref p) => p.to_state(),
-            RETree::Concat(ref ps) => {
-                if ps.len() < 1 {
-                    panic!("invalid Concat len")
-                }
-                let (init, mut lastp) = ps[0].to_state();
-                for i in 1..ps.len() {
-                    let (next, nextp) = ps[i].to_state();
-                    // Connect all loose ends with the new node.
-                    for p in lastp {
-                        p.borrow_mut().patch(next.clone());
-                    }
-                    // Remember the loose ends of this one.
-                    lastp = nextp;
-                }
-                (init, lastp)
-            }
-        }
-    }
-}
-
 /// A Pattern is either a repeated pattern, a stored submatch, an alternation between two patterns,
 /// two patterns following each other, or a character range or set.
 #[derive(Clone, Debug)]
 pub enum Pattern {
+    Concat(Vec<Pattern>),
     /// A repeated sub-pattern.
     Repeated(Box<Repetition>),
     /// A stored submatch.
-    Submatch(Box<RETree>),
+    Submatch(Box<Pattern>),
     /// An alternation between patterns (a|bb|ccc)
-    Alternate(Vec<Box<RETree>>),
+    Alternate(Vec<Pattern>),
     /// A single character.
     Char(char),
     /// A string.
@@ -86,6 +56,25 @@ pub enum AnchorLocation {
 impl Compile for Pattern {
     fn to_state(&self) -> (WrappedState, Vec<WrappedState>) {
         match *self {
+            Pattern::Concat(ref ps) => {
+                if ps.is_empty() {
+                    panic!("invalid Concat len: 0")
+                } else if ps.len() == 1 {
+                    return ps[0].to_state();
+                }
+
+                let (init, mut lastp) = ps[0].to_state();
+                for i in 1..ps.len() {
+                    let (next, nextp) = ps[i].to_state();
+                    // Connect all loose ends with the new node.
+                    for p in lastp {
+                        p.borrow_mut().patch(next.clone());
+                    }
+                    // Remember the loose ends of this one.
+                    lastp = nextp;
+                }
+                (init, lastp)
+            }
             Pattern::Char(c) => {
                 let s = wrap_state(State {
                     out: None,
@@ -161,7 +150,8 @@ impl Compile for Pattern {
     }
 }
 
-fn alternate(ps: &[Box<RETree>], to_patch: &[WrappedState]) -> (WrappedState, Vec<WrappedState>) {
+// alternate compiles a list of patterns into a graph that accepts any one of the patterns.
+fn alternate(ps: &[Pattern], to_patch: &[WrappedState]) -> (WrappedState, Vec<WrappedState>) {
     if ps.len() == 1 {
         let (s, sp) = ps[0].to_state();
         for e in to_patch {
@@ -281,7 +271,7 @@ impl Repetition {
                     // pattern.
                     repetition.push(Pattern::Repeated(Box::new(Repetition::ZeroOrMore(p.clone()))));
                 }
-                RETree::Concat(repetition).to_state()
+                Pattern::Concat(repetition).to_state()
             }
         }
     }
@@ -293,42 +283,42 @@ mod tests {
     use state::*;
 
     // /a(b|c)/
-    fn simple_re0() -> RETree {
-        RETree::Concat(vec![Pattern::CharRange('a', 'a'),
-                            Pattern::Alternate(vec![Box::new(RETree::One(Pattern::Char('b'))),
-                                                    Box::new(RETree::One(Pattern::Char('c')))])])
+    fn simple_re0() -> Pattern {
+        Pattern::Concat(vec![Pattern::CharRange('a', 'a'),
+                             Pattern::Alternate(vec![((Pattern::Char('b'))),
+                                                     ((Pattern::Char('c')))])])
     }
     // Returns compiled form of /(a[bc])?(cd)*(e|f)+x{1,3}(g|hh|i)j{2,}klm/
-    fn simple_re1() -> RETree {
-        RETree::Concat(vec!(
+    fn simple_re1() -> Pattern {
+        Pattern::Concat(vec!(
                 Pattern::Repeated(
                         Box::new(
                     Repetition::ZeroOrOnce(
-                            Pattern::Submatch(Box::new(RETree::Concat(vec!(
+                            Pattern::Submatch(Box::new(Pattern::Concat(vec!(
                                     Pattern::Char('a'), Pattern::CharRange('b', 'c')))))))),
 
                 Pattern::Repeated(
                     Box::new(Repetition::ZeroOrMore(
-                            Pattern::Submatch(Box::new(RETree::Concat(vec!(
+                            Pattern::Submatch(Box::new(Pattern::Concat(vec!(
                                     Pattern::Char('c'), Pattern::Char('d')))))))),
 
                 Pattern::Submatch(
-                    Box::new(RETree::One(
+                    Box::new((
                             Pattern::Repeated(
                                 Box::new(Repetition::OnceOrMore(
                                         Pattern::Alternate(vec!(
-                                                Box::new(RETree::One(Pattern::Char('e'))),
-                                                Box::new(RETree::One(Pattern::Char('f'))))))))))),
+                                                ((Pattern::Char('e'))),
+                                                ((Pattern::Char('f'))))))))))),
 
 
                 Pattern::Repeated(
                     Box::new(Repetition::Specific(Pattern::Char('x'), 1, Some(3)))),
 
                 Pattern::Alternate(vec!(
-                    Box::new(RETree::One(Pattern::Char('g'))),
-                    Box::new(RETree::One(Pattern::Repeated(
+                    ((Pattern::Char('g'))),
+                    ((Pattern::Repeated(
                                 Box::new(Repetition::Specific(Pattern::Char('h'), 2, Some(2)))))),
-                    Box::new(RETree::One(Pattern::Char('i'))))),
+                    ((Pattern::Char('i'))))),
 
                 Pattern::Repeated(
                     Box::new(Repetition::Specific(Pattern::Char('j'), 2, None))),
@@ -340,7 +330,7 @@ mod tests {
     #[test]
     fn test_re1() {
         // println!("{:?}", start_compile(simple_re0()));
-        let dot = dot(start_compile(simple_re1()));
+        let dot = dot(start_compile(&simple_re1()));
         println!("digraph st {{ {} }}", dot);
     }
 }

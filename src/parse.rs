@@ -5,8 +5,15 @@
 
 use std::ops::{Index, Range, RangeFull};
 
-use repr::{self, RETree, Pattern, AnchorLocation, Repetition};
+use repr::Pattern;
 
+pub fn parse(s: &str) -> Result<Pattern, String> {
+    let src: Vec<char> = s.chars().collect();
+    parse_re(ParseState::new(&src))
+}
+
+/// ParseStack contains already parsed elements of a regular expression. It can be converted to an
+/// RETree.
 struct ParseStack {
     s: Vec<Pattern>,
 }
@@ -21,13 +28,13 @@ impl ParseStack {
     fn pop(&mut self) -> Option<Pattern> {
         self.s.pop()
     }
-    fn to_retree(mut self) -> RETree {
+    fn to_retree(mut self) -> Pattern {
         if self.s.len() > 1 {
-            RETree::Concat(self.s)
+            Pattern::Concat(self.s)
         } else if self.s.len() == 1 {
-            RETree::One(self.s.pop().unwrap())
+            self.s.pop().unwrap()
         } else {
-            panic!("empty retree")
+            panic!("empty stack")
         }
     }
 }
@@ -36,7 +43,7 @@ impl ParseStack {
 /// function is concerned with as well as the position within the overall parsed string, so that
 /// useful positions can be reported to users. In addition, it provides functions to create
 /// "sub-ParseStates" containing a substring of its current string.
-/// 
+///
 /// It also supports indexing by ranges and index.
 struct ParseState<'a> {
     /// The string to parse. This may be a substring of the "overall" matched string.
@@ -88,15 +95,11 @@ impl<'a> Index<usize> for ParseState<'a> {
     }
 }
 
-fn parse_enter(s: &str) -> Result<RETree, String> {
-    let src: Vec<char> = s.chars().collect();
-    parse_re(ParseState::new(&src))
-}
-
-fn parse_re<'a>(s: ParseState<'a>) -> Result<RETree, String> {
+fn parse_re<'a>(s: ParseState<'a>) -> Result<Pattern, String> {
     let mut st = ParseStack::new();
     let mut i = 0;
     loop {
+        // TODO: Don't count the position here but advance position within ParseState.
         if i == s.len() {
             break;
         }
@@ -107,11 +110,13 @@ fn parse_re<'a>(s: ParseState<'a>) -> Result<RETree, String> {
                 st.push(Pattern::Char(c));
                 i += 1;
             }
+            // Alternation: Parse the expression on the right of the pipe sign and push an
+            // alternation between what we've already seen and the stuff on the right.
             '|' => {
                 let rest = parse_re(s.from(i + 1))?;
                 let left = st.to_retree();
                 st = ParseStack::new();
-                st.push(Pattern::Alternate(vec![Box::new(left), Box::new(rest)]));
+                st.push(Pattern::Alternate(vec![left, rest]));
                 i = s.len();
             }
             '(' => {
@@ -125,8 +130,8 @@ fn parse_re<'a>(s: ParseState<'a>) -> Result<RETree, String> {
             ')' => i += 1,
             '[' => {
                 if let Some(end) = find_closing_paren(s.from(i), SQUARE_BRACKETS) {
-                    st.push(parse_char_set(s.sub(i + 1, end))?);
-                    i = end;
+                    st.push(parse_char_set(s.sub(i + 1, i + end))?);
+                    i += end;
                 } else {
                     return s.err("couldn't find closing square bracket", i);
                 }
@@ -191,7 +196,7 @@ fn parse_char_set<'a>(s: ParseState<'a>) -> Result<Pattern, String> {
                 i += 1;
             }
         }
-        return s.ok(Pattern::Alternate(set.into_iter().map(|p| Box::new(RETree::One(p))).collect()));
+        return s.ok(Pattern::Alternate(set));
     }
     s.err("unrecognized char set", 0)
 }
@@ -199,7 +204,8 @@ fn parse_char_set<'a>(s: ParseState<'a>) -> Result<Pattern, String> {
 const ROUND_PARENS: (char, char) = ('(', ')');
 const SQUARE_BRACKETS: (char, char) = ('[', ']');
 
-// returns the index of the parenthesis closing the opening parenthesis at s[0].
+// find_closing_paren returns the index of the parenthesis closing the opening parenthesis at the
+// beginning of the state's string.
 fn find_closing_paren<'a>(s: ParseState<'a>, parens: (char, char)) -> Option<usize> {
     let mut count = 0;
     for i in 0..s.len() {
@@ -233,10 +239,10 @@ mod tests {
 
     #[test]
     fn test_parse_manual() {
-        let rep = parse_enter("a|b|c").unwrap();
-        println!("{:?}", flatten_alternate(rep.clone()));
+        let rep = parse("a|[bed]|(c|d|e)|f").unwrap();
+        println!("{:?}\n{:?}", rep.clone(), flatten_alternate(rep.clone()));
 
-        let dot = dot(start_compile(rep));
+        let dot = dot(start_compile(&rep));
         println!("digraph st {{ {} }}", dot);
     }
 }

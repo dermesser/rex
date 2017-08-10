@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use repr;
 use state::{WrappedState, Submatch};
-use matcher::{Matchee};
+use matcher::Matchee;
 
 #[derive(Clone, Debug)]
 struct MatchState {
@@ -57,7 +57,7 @@ impl MatchState {
 /// Returns whether the string matched as well as a list of submatches. The first submatch is the
 /// entire matched string. A submatch is a tuple of (start, end), where end is the index of the
 /// first character that isn't part of the submatch anymore (i.e. [start, end)).
-fn compile_and_match(re: repr::RETree, s: &str) -> (bool, Vec<(usize, usize)>) {
+fn compile_and_match(re: &repr::Pattern, s: &str) -> (bool, Vec<(usize, usize)>) {
     let ws = repr::start_compile(re);
     let mut ms = MatchState::new(s, ws);
 
@@ -167,18 +167,23 @@ mod tests {
     use super::*;
     use repr::*;
     use state::*;
+    use parse;
+
+    fn simple_re0() -> Pattern {
+        parse::parse("a(b|c)[xy][xz]").unwrap()
+    }
 
     // /a(b|c)(xx)?$/
-    fn simple_re0() -> RETree {
-        RETree::Concat(vec![
+    fn raw_re() -> Pattern {
+        Pattern::Concat(vec![
                        Pattern::CharRange('a', 'a'),
                        Pattern::Submatch(
-                           Box::new(RETree::One(Pattern::Alternate(
+                           Box::new((Pattern::Alternate(
                                        vec![
-                                       Box::new(RETree::One(Pattern::Char('b'))),
-                                       Box::new(RETree::One(Pattern::Char('c')))]
+                                       ((Pattern::Char('b'))),
+                                       ((Pattern::Char('c')))]
                                        )))),
-                       Pattern::Submatch(Box::new(RETree::One(
+                       Pattern::Submatch(Box::new((
                                    Pattern::Repeated(Box::new(
                                            Repetition::ZeroOrOnce(
                                                Pattern::Str("xx".to_string()))))))),
@@ -188,8 +193,10 @@ mod tests {
 
     #[test]
     fn test_match_simple() {
-        println!("{:?}", compile_and_match(simple_re0(), "____acxx"));
-        let dot = dot(start_compile(simple_re0()));
+        let re = simple_re0();
+        println!("{:?}", re);
+        println!("{:?}", compile_and_match(&re, "____acxx"));
+        let dot = dot(start_compile(&re));
         println!("digraph st {{ {} }}", dot);
     }
 }
