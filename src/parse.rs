@@ -165,31 +165,41 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
     Ok((stack.to_retree(), s))
 }
 
-// parses the content of character classes like [abc] or [ab-] or [a-z] or [a-zA-E].
+// parse_char_set parses the character set at the start of the input state.
+// Valid states are [a], [ab], [a-z], [-a-z], [a-z-] and [a-fh-kl].
 fn parse_char_set<'a>(s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), String> {
     if let Some((cs, rest)) = split_in_parens(s.clone(), SQUARE_BRACKETS) {
-        // TODO: Parse patterns like [-abc-g].
-        if cs[0] == '-' || cs[cs.len() - 1] == '-' || !cs[..].contains(&'-') {
-            Ok((Pattern::CharSet(Vec::from(&cs[..])), rest))
-        } else if cs[..].contains(&'-') {
-            // dash(es) somewhere in the middle.
-            let mut set = vec![];
-            let mut i = 0;
-            loop {
-                if i >= cs.len() {
-                    break;
-                }
-                if i < cs.len() - 1 && cs[i + 1] == '-' && cs.len() > i + 2 {
-                    set.push(Pattern::CharRange(cs[i], cs[i + 2]));
-                    i += 3;
-                } else {
-                    set.push(Pattern::Char(cs[i]));
-                    i += 1;
-                }
+        let mut chars: Vec<char> = vec![];
+        let mut ranges: Vec<Pattern> = vec![];
+        let mut st = cs;
+
+        loop {
+            // Try to match a range "a-z" by looking for the dash; if no dash, add character to set
+            // and advance.
+            if st.len() >= 3 && st[1] == '-' {
+                ranges.push(Pattern::CharRange(st[0], st[2]));
+                st = st.from(3);
+            } else if st.len() > 0 {
+                chars.push(st[0]);
+                st = st.from(1);
+            } else {
+                break;
             }
-            Ok((Pattern::Alternate(set), rest))
+        }
+
+        assert_eq!(st.len(), 0);
+
+        if chars.len() == 1 {
+            ranges.push(Pattern::Char(chars.pop().unwrap()));
+        } else if !chars.is_empty() {
+            ranges.push(Pattern::CharSet(chars));
+        }
+
+        if ranges.len() == 1 {
+            Ok((ranges.pop().unwrap(), rest))
         } else {
-            s.err("unrecognized charset", 0)
+            let pat = Pattern::Alternate(ranges);
+            Ok((pat, rest))
         }
     } else {
         s.err("unmatched [", s.len())
@@ -276,7 +286,30 @@ mod tests {
             assert_eq!(find_closing_paren(ParseState::new(src.as_ref()), ROUND_PARENS),
                        case.1);
         }
+    }
 
+    #[test]
+    fn test_parse_charset() {
+        for case in &[("[a]", Pattern::Char('a')),
+                      ("[ab]", Pattern::CharSet(vec!['a', 'b'])),
+                      ("[ba-]", Pattern::CharSet(vec!['b', 'a', '-'])),
+                      ("[a-z]", Pattern::CharRange('a', 'z')),
+                      ("[a-z-]",
+                       Pattern::Alternate(vec![Pattern::CharRange('a', 'z'), Pattern::Char('-')])),
+                      ("[-a-z-]",
+                       Pattern::Alternate(vec![Pattern::CharRange('a', 'z'),
+                                               Pattern::CharSet(vec!['-', '-'])])),
+                      ("[a-zA-Z]",
+                       Pattern::Alternate(vec![Pattern::CharRange('a', 'z'),
+                                               Pattern::CharRange('A', 'Z')])),
+                      ("[a-zA-Z-]",
+                       Pattern::Alternate(vec![Pattern::CharRange('a', 'z'),
+                                               Pattern::CharRange('A', 'Z'),
+                                               Pattern::Char('-')]))] {
+            let src: Vec<char> = case.0.chars().collect();
+            let st = ParseState::new(&src);
+            assert_eq!(parse_char_set(st).unwrap().0, case.1);
+        }
     }
 
     #[test]

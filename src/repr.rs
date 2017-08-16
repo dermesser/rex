@@ -26,7 +26,7 @@ pub fn start_compile(re: &Pattern) -> WrappedState {
 
 /// A Pattern is either a repeated pattern, a stored submatch, an alternation between two patterns,
 /// two patterns following each other, or a character range or set.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Pattern {
     Concat(Vec<Pattern>),
     /// A repeated sub-pattern.
@@ -47,7 +47,7 @@ pub enum Pattern {
     Anchor(AnchorLocation),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum AnchorLocation {
     Begin,
     End,
@@ -179,7 +179,7 @@ fn alternate(ps: &[Pattern], to_patch: &[WrappedState]) -> (WrappedState, Vec<Wr
 /// in a Repetition.
 /// The inner type is a pattern, because a repetition is either concerned with only one pattern
 /// (/.?/), or a submatch (/(abc)?/).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Repetition {
     /// /P+/
     ZeroOrOnce(Pattern),
