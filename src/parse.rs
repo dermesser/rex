@@ -6,7 +6,7 @@
 
 use std::ops::{Index, Range, RangeFull};
 
-use repr::{Pattern, Repetition};
+use repr::{AnchorLocation, Pattern, Repetition};
 
 pub fn parse(s: &str) -> Result<Pattern, String> {
     let src: Vec<char> = s.chars().collect();
@@ -65,6 +65,10 @@ impl<'a> ParseState<'a> {
     /// ParseState.
     fn from(&self, from: usize) -> ParseState<'a> {
         self.sub(from, self.len())
+    }
+    /// pos returns the overall position within the input regex.
+    fn pos(&self) -> usize {
+        self.pos
     }
     /// sub returns a sub-ParseState containing [from..to] of the current one.
     fn sub(&self, from: usize, to: usize) -> ParseState<'a> {
@@ -130,6 +134,22 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
             }
             '.' => {
                 stack.push(Pattern::Any);
+                s = s.from(1);
+            }
+            '$' => {
+                if s.len() == 1 {
+                    stack.push(Pattern::Anchor(AnchorLocation::End));
+                } else {
+                    stack.push(Pattern::Char('$'))
+                }
+                s = s.from(1);
+            }
+            '^' => {
+                if s.pos() == 0 {
+                    stack.push(Pattern::Anchor(AnchorLocation::Begin));
+                } else {
+                    stack.push(Pattern::Char('^'));
+                }
                 s = s.from(1);
             }
             '+' => {
