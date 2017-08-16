@@ -96,7 +96,7 @@ fn start_match(m: MatchState) -> (bool, Vec<Option<usize>>) {
         // Iterate over all current states, see which match, and add the successors of matching
         // states to the states_next list.
         for mut st in states.drain(..) {
-            println!("{:?}", st);
+            // println!("{:?}", st);
             let (next1, next2) = st.node.borrow().next_states();
 
             // Check if this node is a submatch start or end. If it is, the list of pending
@@ -170,7 +170,7 @@ mod tests {
     use parse;
 
     fn simple_re0() -> Pattern {
-        parse::parse("a(b|c)[xy][xz]").unwrap()
+        parse::parse("^a(b+)$c$").unwrap()
     }
 
     // /a(b|c)(xx)?$/
@@ -194,8 +194,8 @@ mod tests {
     #[test]
     fn test_match_simple() {
         let re = simple_re0();
-        println!("{:?}", re);
-        println!("{:?}", compile_and_match(&re, "____acxx"));
+        // println!("{:?}", re);
+        println!("{:?}", compile_and_match(&re, "abb$c"));
         let dot = dot(start_compile(&re));
         println!("digraph st {{ {} }}", dot);
     }

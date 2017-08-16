@@ -6,7 +6,7 @@
 
 use std::ops::{Index, Range, RangeFull};
 
-use repr::Pattern;
+use repr::{Pattern, Repetition};
 
 pub fn parse(s: &str) -> Result<Pattern, String> {
     let src: Vec<char> = s.chars().collect();
@@ -132,6 +132,14 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
                 stack.push(Pattern::Any);
                 s = s.from(1);
             }
+            '+' => {
+                if let Some(p) = stack.pop() {
+                    stack.push(Pattern::Repeated(Box::new(Repetition::OnceOrMore(p))));
+                    s = s.from(1);
+                } else {
+                    return s.err("+ without pattern to repeat", 0);
+                }
+            }
             // Alternation: Parse the expression on the right of the pipe sign and push an
             // alternation between what we've already seen and the stuff on the right.
             '|' => {
@@ -152,10 +160,7 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
                         // Set the current state to contain the string after the parentheses.
                         s = newst;
                     }
-                    None => {
-                        return s.err(&format!("unmatched ( (expected closing ) at {})", s.len()),
-                                     0)
-                    }
+                    None => return s.err("unmatched (", s.len()),
                 }
             }
             ')' => return s.err("unopened ')'", 0),
@@ -174,11 +179,7 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
             }
         }
     }
-    if !stack.empty() {
-        Ok((stack.to_retree(), s))
-    } else {
-        s.err("empty regex", 0)
-    }
+    Ok((stack.to_retree(), s))
 }
 
 // parse_char_set parses the character set at the start of the input state.
@@ -218,8 +219,7 @@ fn parse_char_set<'a>(s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), St
             Ok((pat, rest))
         }
     } else {
-        s.err(&format!("unmatched [ (expected closing ] at {})", s.len()),
-              0)
+        s.err("unmatched [", s.len())
     }
 }
 
