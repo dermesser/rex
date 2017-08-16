@@ -126,7 +126,11 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
         match s[0] {
             c if c.is_alphanumeric() => {
                 stack.push(Pattern::Char(c));
-                s = s.from(1)
+                s = s.from(1);
+            }
+            '.' => {
+                stack.push(Pattern::Any);
+                s = s.from(1);
             }
             // Alternation: Parse the expression on the right of the pipe sign and push an
             // alternation between what we've already seen and the stuff on the right.

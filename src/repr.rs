@@ -37,6 +37,8 @@ pub enum Pattern {
     Alternate(Vec<Pattern>),
     /// A single character.
     Char(char),
+    /// Any character (.).
+    Any,
     /// A string.
     Str(String),
     /// A character range.
@@ -74,6 +76,15 @@ impl Compile for Pattern {
                     lastp = nextp;
                 }
                 (init, lastp)
+            }
+            Pattern::Any => {
+                let s = wrap_state(State {
+                    out: None,
+                    out1: None,
+                    matcher: wrap_matcher(Box::new(matcher::AnyMatcher)),
+                    sub: None,
+                });
+                (s.clone(), vec![s])
             }
             Pattern::Char(c) => {
                 let s = wrap_state(State {
