@@ -148,7 +148,10 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
                         // Set the current state to contain the string after the parentheses.
                         s = newst;
                     }
-                    None => return s.err("unmatched (", s.len()),
+                    None => {
+                        return s.err(&format!("unmatched ( (expected closing ) at {})", s.len()),
+                                     0)
+                    }
                 }
             }
             '[' => {
@@ -209,7 +212,8 @@ fn parse_char_set<'a>(s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), St
             Ok((pat, rest))
         }
     } else {
-        s.err("unmatched [", s.len())
+        s.err(&format!("unmatched [ (expected closing ] at {})", s.len()),
+              0)
     }
 }
 
@@ -334,7 +338,12 @@ mod tests {
 
     #[test]
     fn test_parse_res() {
-        let case1 = ("^a(Bc)+de", Pattern::Char('a'));
+        let case1 = ("a(Bcd)e",
+                     Pattern::Concat(vec![Pattern::Char('a'),
+                              Pattern::Submatch(Box::new(Pattern::Concat(vec![Pattern::Char('B'),
+                                                                          Pattern::Char('c'),
+                                                                          Pattern::Char('d')]))),
+                              Pattern::Char('e')]));
 
         for c in &[case1] {
             assert_eq!(c.1, parse(c.0).unwrap());
@@ -354,6 +363,6 @@ mod tests {
 
     #[test]
     fn test_parse_manual2() {
-        println!("{:?}", parse("a([bc)def"));
+        println!("{:?}", parse("a([bc])def"));
     }
 }
