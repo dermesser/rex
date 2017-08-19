@@ -29,6 +29,9 @@ impl ParseStack {
     fn pop(&mut self) -> Option<Pattern> {
         self.s.pop()
     }
+    fn empty(&self) -> bool {
+        self.s.is_empty()
+    }
     fn to_retree(mut self) -> Pattern {
         if self.s.len() > 1 {
             Pattern::Concat(self.s)
@@ -77,7 +80,7 @@ impl<'a> ParseState<'a> {
     /// err returns a formatted error string containing the specified message and the overall
     /// position within the original input string.
     fn err<T>(&self, s: &str, i: usize) -> Result<T, String> {
-        Err(format!("{} at {}", s, self.pos + i))
+        Err(format!("{} at :{}", s, self.pos + i))
     }
 }
 
@@ -162,7 +165,11 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
             }
         }
     }
-    Ok((stack.to_retree(), s))
+    if !stack.empty() {
+        Ok((stack.to_retree(), s))
+    } else {
+        s.err("empty regex", 0)
+    }
 }
 
 // parse_char_set parses the character set at the start of the input state.
@@ -276,7 +283,7 @@ mod optimize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use repr::start_compile;
+    use repr::*;
     use state::dot;
 
     #[test]
@@ -309,6 +316,28 @@ mod tests {
             let src: Vec<char> = case.0.chars().collect();
             let st = ParseState::new(&src);
             assert_eq!(parse_char_set(st).unwrap().0, case.1);
+        }
+    }
+
+    #[test]
+    fn test_parse_subs() {
+        let case1 = ("a(b)c",
+                     Pattern::Concat(vec![Pattern::Char('a'),
+                                          Pattern::Submatch(Box::new(Pattern::Char('b'))),
+                                          Pattern::Char('c')]));
+        let case2 = ("(b)", Pattern::Submatch(Box::new(Pattern::Char('b'))));
+
+        for c in &[case1, case2] {
+            assert_eq!(c.1, parse(c.0).unwrap());
+        }
+    }
+
+    #[test]
+    fn test_parse_res() {
+        let case1 = ("^a(Bc)+de", Pattern::Char('a'));
+
+        for c in &[case1] {
+            assert_eq!(c.1, parse(c.0).unwrap());
         }
     }
 
