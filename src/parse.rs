@@ -154,6 +154,7 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
                     }
                 }
             }
+            ')' => return s.err("unopened ')'", 0),
             '[' => {
                 match parse_char_set(s) {
                     Ok((pat, newst)) => {
@@ -163,6 +164,7 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
                     Err(e) => return Err(e),
                 }
             }
+            ']' => return s.err("unopened ']'", 0),
             _ => {
                 return s.err("unimplemented pattern", 0);
             }
@@ -351,6 +353,18 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_res_errors() {
+        let case1 = ("ac)d", "unopened ')' at :2");
+        let case2 = ("(ac)d)", "unopened ')' at :5");
+        let case3 = ("[ac]d]", "unopened ']' at :5");
+        let case4 = ("(ac)d]", "unopened ']' at :5");
+
+        for c in &[case1, case2, case3, case4] {
+            assert_eq!(c.1, parse(c.0).unwrap_err());
+        }
+    }
+
+    #[test]
     fn test_parse_manual() {
         let rep = parse("a|[bed]|(c|d|e)|f").unwrap();
         println!("{:?}\n{:?}",
@@ -363,6 +377,6 @@ mod tests {
 
     #[test]
     fn test_parse_manual2() {
-        println!("{:?}", parse("a([bc])def"));
+        println!("{:?}", parse("abcdef"));
     }
 }
