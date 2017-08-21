@@ -360,7 +360,7 @@ pub mod optimize {
                 }
 
                 if chars.len() == 1 {
-                    return Pattern::Char(chars[0]);
+                    new_elems.push(Pattern::Char(chars[0]));
                 } else if chars.len() > 1 {
                     let newp = Pattern::Str(String::from_iter(chars.drain(..)));
                     new_elems.push(newp);
@@ -418,7 +418,7 @@ mod tests {
                                           Pattern::Str("cd".to_string())]));
         let case3 = (Pattern::Concat(vec![Pattern::Str("abc".to_string()),
                                           Pattern::Anchor(AnchorLocation::End),
-                                          Pattern::Str("d".to_string())]),
+                                          Pattern::Char('d')]),
                      Pattern::Concat(vec![Pattern::Char('a'),
                                           Pattern::Char('b'),
                                           Pattern::Char('c'),
