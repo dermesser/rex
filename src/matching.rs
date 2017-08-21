@@ -62,14 +62,23 @@ impl MatchState {
     }
 }
 
+/// do_match starts the matching process. It tries to match the supplied compiled regex against the
+/// supplied string. If it fails, it skips ahead and tries later in the string (i.e., if the regex
+/// isn't anchored, it will do a full-text match).
 pub fn do_match(ws: WrappedState, s: &str) -> (bool, Vec<(usize, usize)>) {
     let mut ms = MatchState::new(s, ws);
+    let (mut i, len) = (0, s.len());
 
-    for i in 0..s.len() {
+    // TODO: Find out if a failed match is definitive; an anchored regex can't match anywhere later
+    // in the text.
+    while i < len {
         ms.reset(i);
-        match start_match(ms.clone()) {
-            (false, _) => continue,
-            (true, matchpos) => {
+        let m = start_match(ms.clone());
+        println!("{:?}", m);
+        match m {
+            // If the match fails, we skip as many characters as were matched at first.
+            (false, skip, _) => i += skip + 1,
+            (true, _, matchpos) => {
                 let mut matches = vec![];
                 for i in 0..matchpos.len() {
                     if matchpos[i].is_some() {
@@ -84,15 +93,17 @@ pub fn do_match(ws: WrappedState, s: &str) -> (bool, Vec<(usize, usize)>) {
 }
 
 /// start_match takes an initialized MatchState and starts matching. It returns true if the input
-/// string matches, otherwise false. It also returns a vector of submatches; if the entry at index
-/// I contains Some(J), then that means that there is a submatch starting at I extending to (J-1).
-pub fn start_match(m: MatchState) -> (bool, Vec<Option<usize>>) {
+/// string matches, otherwise false; the number of characters matched; and a vector of submatches;
+/// if the entry at index I contains Some(J), then that means that there is a submatch starting at
+/// I extending to (J-1).
+pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
     let mut states = Vec::with_capacity(4);
     let mut states_next = Vec::with_capacity(4);
     states.push(m);
 
     let (mut ismatch, mut matches) = (false, vec![]);
     let mut longestmatch = 0;
+    let mut count = 0;
 
     loop {
         if states.is_empty() {
@@ -122,8 +133,8 @@ pub fn start_match(m: MatchState) -> (bool, Vec<Option<usize>>) {
                 longestmatch = st.matchee.pos();
                 continue;
             }
-            let mut advance_by = 0;
 
+            let mut advance_by = 0;
             // Check if the current state matches.
             if let Some((matched, howmany)) = st.node.borrow().matches(&st.matchee) {
                 // Current state didn't match, throw away.
@@ -131,6 +142,7 @@ pub fn start_match(m: MatchState) -> (bool, Vec<Option<usize>>) {
                     continue;
                 }
                 advance_by = howmany;
+                count += howmany;
             }
 
             // We only clone the current state if there's a fork in the graph. Otherwise we reuse
@@ -154,7 +166,7 @@ pub fn start_match(m: MatchState) -> (bool, Vec<Option<usize>>) {
         mem::swap(&mut states, &mut states_next);
     }
 
-    return (ismatch, matches);
+    return (ismatch, count, matches);
 }
 
 #[cfg(test)]
@@ -165,7 +177,7 @@ mod tests {
     use parse;
 
     fn simple_re0() -> Pattern {
-        parse::parse("^a(b+)$c$").unwrap()
+        parse::parse("a(b+)$c$").unwrap()
     }
 
     // /a(b|c)(xx)?$/
@@ -190,7 +202,7 @@ mod tests {
     fn test_match_simple() {
         let re = simple_re0();
         // println!("{:?}", re);
-        println!("{:?}", do_match(start_compile(&re), "abb$c"));
+        println!("{:?}", do_match(start_compile(&re), "abbbbxxabb$c"));
         let dot = dot(start_compile(&re));
         println!("digraph st {{ {} }}", dot);
     }
