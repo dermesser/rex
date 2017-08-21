@@ -103,7 +103,7 @@ pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
 
     let (mut ismatch, mut matches) = (false, vec![]);
     let mut longestmatch = 0;
-    let mut count = 0;
+    let mut longest_partial_match = 0;
 
     loop {
         if states.is_empty() {
@@ -133,6 +133,11 @@ pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
                 longestmatch = st.matchee.pos();
                 continue;
             }
+            // longest_partial_match contains the furthest any substate has advanced into the
+            // string.
+            if st.matchee.pos() > longest_partial_match {
+                longest_partial_match = st.matchee.pos();
+            }
 
             let mut advance_by = 0;
             // Check if the current state matches.
@@ -142,7 +147,6 @@ pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
                     continue;
                 }
                 advance_by = howmany;
-                count += howmany;
             }
 
             // We only clone the current state if there's a fork in the graph. Otherwise we reuse
@@ -166,7 +170,7 @@ pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
         mem::swap(&mut states, &mut states_next);
     }
 
-    return (ismatch, count, matches);
+    return (ismatch, longest_partial_match, matches);
 }
 
 #[cfg(test)]
@@ -177,7 +181,7 @@ mod tests {
     use parse;
 
     fn simple_re0() -> Pattern {
-        parse::parse("a(b+)$c$").unwrap()
+        (parse::parse("a(b+|bb|bbb|c+)$c$").unwrap())
     }
 
     // /a(b|c)(xx)?$/
