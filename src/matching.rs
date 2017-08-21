@@ -77,7 +77,7 @@ pub fn do_match(ws: WrappedState, s: &str) -> (bool, Vec<(usize, usize)>) {
         println!("{:?}", m);
         match m {
             // If the match fails, we skip as many characters as were matched at first.
-            (false, skip, _) => i += skip + 1,
+            (false, skip, _) => i = skip + 1,
             (true, _, matchpos) => {
                 let mut matches = vec![];
                 for i in 0..matchpos.len() {
@@ -93,9 +93,10 @@ pub fn do_match(ws: WrappedState, s: &str) -> (bool, Vec<(usize, usize)>) {
 }
 
 /// start_match takes an initialized MatchState and starts matching. It returns true if the input
-/// string matches, otherwise false; the number of characters matched; and a vector of submatches;
-/// if the entry at index I contains Some(J), then that means that there is a submatch starting at
-/// I extending to (J-1).
+/// string matches, otherwise false; the index in the input string to which the match was
+/// successful (in case a match fails, but matches some characters at the beginning); and a vector
+/// of submatches; if the entry at index I contains Some(J), then that means that there is a
+/// submatch starting at I extending to (J-1).
 pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
     let mut states = Vec::with_capacity(4);
     let mut states_next = Vec::with_capacity(4);
