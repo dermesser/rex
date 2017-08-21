@@ -8,12 +8,11 @@ use std::cell::RefCell;
 use std::mem;
 use std::rc::Rc;
 
-use repr;
 use state::{WrappedState, Submatch};
 use matcher::Matchee;
 
 #[derive(Clone, Debug)]
-struct MatchState {
+pub struct MatchState {
     node: WrappedState,
     matchee: Matchee,
     // The set of submatches encountered, indexed by the start of a submatch. If submatches
@@ -51,14 +50,19 @@ impl MatchState {
         self.submatches_todo.to_mut().clear();
         self.matchee.reset(new_start);
     }
+    fn start_submatch(&mut self) {
+        if self.matchee.pos() < self.matchee.len() {
+            self.submatches_todo.to_mut().push(self.matchee.pos());
+        }
+    }
+    fn stop_submatch(&mut self) {
+        if let Some(begin) = self.submatches_todo.to_mut().pop() {
+            self.submatches.borrow_mut()[begin] = Some(self.matchee.pos());
+        }
+    }
 }
 
-/// Compiles a parsed regular expression into the internal state graph and matches s against it.
-/// Returns whether the string matched as well as a list of submatches. The first submatch is the
-/// entire matched string. A submatch is a tuple of (start, end), where end is the index of the
-/// first character that isn't part of the submatch anymore (i.e. [start, end)).
-fn compile_and_match(re: &repr::Pattern, s: &str) -> (bool, Vec<(usize, usize)>) {
-    let ws = repr::start_compile(re);
+pub fn do_match(ws: WrappedState, s: &str) -> (bool, Vec<(usize, usize)>) {
     let mut ms = MatchState::new(s, ws);
 
     for i in 0..s.len() {
@@ -79,7 +83,10 @@ fn compile_and_match(re: &repr::Pattern, s: &str) -> (bool, Vec<(usize, usize)>)
     (false, vec![])
 }
 
-fn start_match(m: MatchState) -> (bool, Vec<Option<usize>>) {
+/// start_match takes an initialized MatchState and starts matching. It returns true if the input
+/// string matches, otherwise false. It also returns a vector of submatches; if the entry at index
+/// I contains Some(J), then that means that there is a submatch starting at I extending to (J-1).
+pub fn start_match(m: MatchState) -> (bool, Vec<Option<usize>>) {
     let mut states = Vec::with_capacity(4);
     let mut states_next = Vec::with_capacity(4);
     states.push(m);
@@ -92,30 +99,18 @@ fn start_match(m: MatchState) -> (bool, Vec<Option<usize>>) {
             break;
         }
 
-        println!("===");
         // Iterate over all current states, see which match, and add the successors of matching
         // states to the states_next list.
         for mut st in states.drain(..) {
-            // println!("{:?}", st);
             let (next1, next2) = st.node.borrow().next_states();
 
             // Check if this node is a submatch start or end. If it is, the list of pending
             // submatches is cloned and the current position pushed (Start) or the most recent
             // submatch start popped and stored in the overall submatch list (End).
-            match st.node.borrow().sub {
-                Some(Submatch::Start) => {
-                    // Only start a new submatch if we're not past the end.
-                    if st.matchee.pos() < st.matchee.len() {
-                        st.submatches_todo.to_mut().push(st.matchee.pos());
-                    }
-                }
-                Some(Submatch::End) => {
-                    // Get the start of the most recently started submatch
-                    if let Some(begin) = st.submatches_todo.to_mut().pop() {
-                        // ...and store it in the list of overall submatches.
-                        st.submatches.borrow_mut()[begin] = Some(st.matchee.pos());
-                    }
-                }
+            let sub = st.node.borrow().sub.clone();
+            match sub {
+                Some(Submatch::Start) => st.start_submatch(),
+                Some(Submatch::End) => st.stop_submatch(),
                 None => {}
             }
 
@@ -195,7 +190,7 @@ mod tests {
     fn test_match_simple() {
         let re = simple_re0();
         // println!("{:?}", re);
-        println!("{:?}", compile_and_match(&re, "abb$c"));
+        println!("{:?}", do_match(start_compile(&re), "abb$c"));
         let dot = dot(start_compile(&re));
         println!("digraph st {{ {} }}", dot);
     }
