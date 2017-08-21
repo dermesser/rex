@@ -280,36 +280,6 @@ fn find_closing_paren<'a>(s: ParseState<'a>, parens: (char, char)) -> Option<usi
     None
 }
 
-/// The optimize module contains functionality for optimizing Patterns before compiling it to a
-/// State graph.
-mod optimize {
-    use repr::Pattern;
-
-    pub fn optimize(mut p: Pattern) -> Pattern {
-        p = flatten_alternate(p);
-        // TODO: Define more optimizations.
-        p
-    }
-
-    // flatten_alternate takes the alternatives in a Pattern::Alternate and reduces the nesting
-    // recursively.
-    pub fn flatten_alternate(p: Pattern) -> Pattern {
-        fn _flatten_alternate(p: Pattern) -> Vec<Pattern> {
-            match p {
-                Pattern::Alternate(a) => {
-                    let mut alternatives = vec![];
-                    for alt in a.into_iter() {
-                        alternatives.append(&mut _flatten_alternate(alt));
-                    }
-                    alternatives
-                }
-                p_ => vec![p_],
-            }
-        }
-        Pattern::Alternate(_flatten_alternate(p))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,9 +361,7 @@ mod tests {
     #[test]
     fn test_parse_manual() {
         let rep = parse("a|[bed]|(c|d|e)|f").unwrap();
-        println!("{:?}\n{:?}",
-                 rep.clone(),
-                 optimize::flatten_alternate(rep.clone()));
+        println!("{:?}", rep.clone());
 
         let dot = dot(start_compile(&rep));
         println!("digraph st {{ {} }}", dot);

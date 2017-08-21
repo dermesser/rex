@@ -290,17 +290,45 @@ impl Repetition {
 
 /// optimize contains functionality for optimizing the representation of regular expressions for
 /// more efficient matching.
-mod optimize {
+pub mod optimize {
     use super::*;
     use std::iter::{FromIterator, Iterator};
     use std::ops::Deref;
 
     pub fn optimize(mut p: Pattern) -> Pattern {
         p = concat_chars_to_str(p);
+        p = flatten_alternate(p);
         p = optimize_recursively(p);
         p
     }
 
+    /// optimize_recursively applies optimize() to the inner Patterns of a Pattern.
+    fn optimize_recursively(p: Pattern) -> Pattern {
+        match p {
+            Pattern::Concat(ps) => Pattern::Concat(ps.into_iter().map(optimize).collect()),
+            Pattern::Submatch(bp) => {
+                let sub = optimize(bp.deref().clone());
+                Pattern::Submatch(Box::new(sub))
+            }
+            Pattern::Alternate(ps) => Pattern::Alternate(ps.into_iter().map(optimize).collect()),
+            Pattern::Repeated(r) => {
+                let rep = r.deref().clone();
+                Pattern::Repeated(Box::new(match rep {
+                    Repetition::ZeroOrOnce(rp) => Repetition::ZeroOrOnce(optimize(rp)),
+                    Repetition::ZeroOrMore(rp) => Repetition::ZeroOrMore(optimize(rp)),
+                    Repetition::OnceOrMore(rp) => Repetition::OnceOrMore(optimize(rp)),
+                    Repetition::Specific(rp, min, max) => {
+                        Repetition::Specific(optimize(rp), min, max)
+                    }
+                }))
+            }
+
+            p => p,
+        }
+    }
+
+    /// concat_chars_to_str collapses successive single-character patterns into a single string
+    /// pattern.
     fn concat_chars_to_str(p: Pattern) -> Pattern {
         match p {
             Pattern::Concat(mut v) => {
@@ -319,14 +347,21 @@ mod optimize {
                         e => {
                             // Once a run of chars/strings is broken, merge the run, push the
                             // non-char/string pattern and continue with the next one.
-                            let newp = Pattern::Str(String::from_iter(chars.drain(..)));
-                            new_elems.push(newp);
+                            if chars.len() == 1 {
+                                new_elems.push(Pattern::Char(chars.pop().unwrap()))
+                            } else if chars.len() > 1 {
+                                let newp = Pattern::Str(String::from_iter(chars.drain(..)));
+                                new_elems.push(newp);
+                            }
                             new_elems.push(e);
                             assert!(chars.is_empty());
                         }
                     }
                 }
-                if !chars.is_empty() {
+
+                if chars.len() == 1 {
+                    return Pattern::Char(chars[0]);
+                } else if chars.len() > 1 {
                     let newp = Pattern::Str(String::from_iter(chars.drain(..)));
                     new_elems.push(newp);
                 }
@@ -341,27 +376,27 @@ mod optimize {
         }
     }
 
-    fn optimize_recursively(p: Pattern) -> Pattern {
-        match p {
-            Pattern::Concat(ps) => Pattern::Concat(ps.into_iter().map(optimize).collect()),
-            Pattern::Submatch(bp) => {
-                let sub = optimize(bp.deref().clone());
-                Pattern::Submatch(Box::new(sub))
-            }
-            Pattern::Alternate(ps) => Pattern::Alternate(ps.into_iter().map(optimize).collect()),
-            Pattern::Repeated(r) => {
-                let rep = r.deref().clone();
-                Pattern::Repeated(Box::new(match rep {
-                    Repetition::ZeroOrOnce(p) => Repetition::ZeroOrOnce(optimize(p)),
-                    Repetition::ZeroOrMore(p) => Repetition::ZeroOrMore(optimize(p)),
-                    Repetition::OnceOrMore(p) => Repetition::OnceOrMore(optimize(p)),
-                    Repetition::Specific(p, min, max) => {
-                        Repetition::Specific(optimize(p), min, max)
+    /// flatten_alternate takes the alternatives in a Pattern::Alternate and reduces the nesting
+    /// recursively.
+    fn flatten_alternate(p: Pattern) -> Pattern {
+        fn _flatten_alternate(p: Pattern) -> Vec<Pattern> {
+            match p {
+                Pattern::Alternate(a) => {
+                    let mut alternatives = vec![];
+                    for alt in a.into_iter() {
+                        alternatives.append(&mut _flatten_alternate(alt));
                     }
-                }))
+                    alternatives
+                }
+                p_ => vec![p_],
             }
+        }
 
-            p => p,
+        let mut fa = _flatten_alternate(p);
+        if fa.len() == 1 {
+            fa.pop().unwrap()
+        } else {
+            Pattern::Alternate(fa)
         }
     }
 }
