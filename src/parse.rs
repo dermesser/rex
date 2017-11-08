@@ -283,6 +283,7 @@ fn find_closing_paren<'a>(s: ParseState<'a>, parens: (char, char)) -> Option<usi
 #[cfg(test)]
 mod tests {
     use super::*;
+    use compile::*;
     use repr::*;
     use state::dot;
 

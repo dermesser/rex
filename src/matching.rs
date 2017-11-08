@@ -179,6 +179,7 @@ mod tests {
     use super::*;
     use repr::*;
     use state::*;
+    use compile::*;
     use parse;
 
     fn simple_re0() -> Pattern {

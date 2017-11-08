@@ -12,13 +12,6 @@ use std::rc::Rc;
 
 use matcher::{Matchee, Matcher};
 
-/// Types implementing Compile can be compiled into a state graph.
-pub trait Compile {
-    /// to_state returns the start node of a subgraph, and a list of pointers that need to be
-    /// connected to the following subgraph. The list can contain the first tuple element.
-    fn to_state(&self) -> (WrappedState, Vec<WrappedState>);
-}
-
 /// State is a single state that the evaluation can be in. It contains several output states as
 /// well as a matcher.
 #[derive(Debug, Default, Clone)]
