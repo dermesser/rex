@@ -4,7 +4,9 @@
 
 #![allow(dead_code)]
 
+use std::iter::FromIterator;
 use std::ops::{Index, Range, RangeFull};
+use std::str::FromStr;
 
 use repr::{AnchorLocation, Pattern, Repetition};
 
@@ -152,9 +154,15 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
                 }
                 s = s.from(1);
             }
-            '+' => {
+            r @ '+' | r @ '*' | r @ '?' => {
                 if let Some(p) = stack.pop() {
-                    stack.push(Pattern::Repeated(Box::new(Repetition::OnceOrMore(p))));
+                    let rep = match r {
+                        '+' => Repetition::OnceOrMore(p),
+                        '*' => Repetition::ZeroOrMore(p),
+                        '?' => Repetition::ZeroOrOnce(p),
+                        _ => unimplemented!(),
+                    };
+                    stack.push(Pattern::Repeated(Box::new(rep)));
                     s = s.from(1);
                 } else {
                     return s.err("+ without pattern to repeat", 0);
@@ -194,6 +202,20 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
                 }
             }
             ']' => return s.err("unopened ']'", 0),
+            '{' => {
+                match split_in_parens(s.clone(), CURLY_BRACKETS) {
+                    Some((rep, newst)) => {
+                        if let Some(p) = stack.pop() {
+                            let rep = parse_specific_repetition(rep, p)?;
+
+                            s = newst;
+                        } else {
+                            return s.err("repetition {} without pattern to repeat", 0);
+                        }
+                    }
+                    None => return s.err("unmatched {", s.len()),
+                };
+            }
             _ => {
                 return s.err("unimplemented pattern", 0);
             }
@@ -241,6 +263,31 @@ fn parse_char_set<'a>(s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), St
     } else {
         s.err("unmatched [", s.len())
     }
+}
+
+// Parse a repetition spec inside curly braces: {1} | {1,} | {,1} | {1,2}
+fn parse_specific_repetition<'a>(rep: ParseState<'a>, p: Pattern) -> Result<Repetition, String> {
+    let mut nparts = 0;
+    let mut parts: [Option<&[char]>; 2] = Default::default();
+
+    for p in rep[..].split(|c| *c == ',') {
+        parts[nparts] = Some(p);
+        nparts += 1;
+        if nparts == 2 {
+            break;
+        }
+    }
+
+    if nparts == 1 {
+        // {1}
+        if let Ok(n) = u32::from_str(&String::from_iter(parts[0].unwrap().iter())) {
+            return Ok(Repetition::Specific(p, n, None));
+        } else {
+            return Err(format!("invalid repetition '{}'", String::from_iter(rep[..].iter())));
+        }
+    }
+
+    Err(String::from("abc"))
 }
 
 const ROUND_PARENS: (char, char) = ('(', ')');
