@@ -130,7 +130,6 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
             break;
         }
 
-        println!("{:?} {}", &s[..], s.pos);
         match s[0] {
             c if c.is_alphanumeric() => {
                 stack.push(Pattern::Char(c));
@@ -207,7 +206,7 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
                     Some((rep, newst)) => {
                         if let Some(p) = stack.pop() {
                             let rep = parse_specific_repetition(rep, p)?;
-
+                            stack.push(Pattern::Repeated(Box::new(rep)));
                             s = newst;
                         } else {
                             return s.err("repetition {} without pattern to repeat", 0);
@@ -292,12 +291,19 @@ fn parse_specific_repetition<'a>(rep: ParseState<'a>, p: Pattern) -> Result<Repe
             ));
         }
     } else if nparts == 2 {
+        fn errtostr(r: Result<u32, std::num::ParseIntError>) -> Result<u32, String> {
+            match r {
+                Ok(u) => Ok(u),
+                Err(e) => Err(format!("{}", e)),
+            }
+        }
         // {2,3}
-        let min = u32::from_str(&String::from_iter(parts[0].unwrap().iter()));
-        let max = u32::from_str(&String::from_iter(parts[1].unwrap().iter()));
+        let min = errtostr(u32::from_str(&String::from_iter(parts[0].unwrap().iter())))?;
+        let max = errtostr(u32::from_str(&String::from_iter(parts[1].unwrap().iter())))?;
+        return Ok(Repetition::Specific(p, min, Some(max)))
     }
 
-    Err(String::from("abc"))
+    Err(format!("invalid repetition pattern {:?}", &rep[..]))
 }
 
 const ROUND_PARENS: (char, char) = ('(', ')');
@@ -450,6 +456,10 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_parse_repetition_manual() {
+        println!("digraph st {{ {} }}", dot(start_compile(&parse("[abc]{1,5}").unwrap())));
+    }
     #[test]
     fn test_parse_manual() {
         let rep = parse("a|[bed]|(c|d|e)|f").unwrap();

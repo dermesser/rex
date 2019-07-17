@@ -229,10 +229,10 @@ mod tests {
                 ])),
             )))),
             Pattern::Submatch(Box::new(
-                (Pattern::Repeated(Box::new(Repetition::OnceOrMore(Pattern::Alternate(vec![
+                Pattern::Repeated(Box::new(Repetition::OnceOrMore(Pattern::Alternate(vec![
                     (Pattern::Char('e')),
                     (Pattern::Char('f')),
-                ]))))),
+                ])))),
             )),
             Pattern::Repeated(Box::new(Repetition::Specific(
                 Pattern::Char('x'),
@@ -240,12 +240,12 @@ mod tests {
                 Some(3),
             ))),
             Pattern::Alternate(vec![
-                (Pattern::Char('g')),
-                (Pattern::Repeated(Box::new(Repetition::Specific(
+                Pattern::Char('g'),
+                Pattern::Repeated(Box::new(Repetition::Specific(
                     Pattern::Char('h'),
                     2,
                     Some(2),
-                )))),
+                ))),
                 (Pattern::Char('i')),
             ]),
             Pattern::Repeated(Box::new(Repetition::Specific(Pattern::Char('j'), 2, None))),

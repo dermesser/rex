@@ -74,7 +74,6 @@ pub fn do_match(ws: WrappedState, s: &str) -> (bool, Vec<(usize, usize)>) {
     while i < len {
         ms.reset(i);
         let m = start_match(ms.clone());
-        println!("{:?}", m);
         match m {
             // If the match fails, we skip as many characters as were matched at first.
             (false, skip, _) => i = skip + 1,
@@ -183,7 +182,7 @@ mod tests {
     use state::*;
 
     fn simple_re0() -> Pattern {
-        (parse::parse("a(b+|bb|bbb|c+)$c$").unwrap())
+        (parse::parse("a(b+|bb|bbb|c+){1,3}$c$").unwrap())
     }
 
     // /a(b|c)(xx)?$/
@@ -191,12 +190,12 @@ mod tests {
         Pattern::Concat(vec![
             Pattern::CharRange('a', 'a'),
             Pattern::Submatch(Box::new(
-                (Pattern::Alternate(vec![(Pattern::Char('b')), (Pattern::Char('c'))])),
+                Pattern::Alternate(vec![(Pattern::Char('b')), (Pattern::Char('c'))]),
             )),
             Pattern::Submatch(Box::new(
-                (Pattern::Repeated(Box::new(Repetition::ZeroOrOnce(Pattern::Str(
+                Pattern::Repeated(Box::new(Repetition::ZeroOrOnce(Pattern::Str(
                     "xx".to_string(),
-                ))))),
+                )))),
             )),
             Pattern::Anchor(AnchorLocation::End),
         ])
