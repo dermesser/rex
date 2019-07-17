@@ -68,17 +68,19 @@ impl State {
     }
 
     fn to_string(&self) -> String {
-        format!("m:{} sub:{}",
-                if let Some(ref m) = self.matcher {
-                    format!("{:?}", m)
-                } else {
-                    "_".to_string()
-                },
-                if let Some(ref s) = self.sub {
-                    format!("{:?}", s)
-                } else {
-                    "".to_string()
-                })
+        format!(
+            "m:{} sub:{}",
+            if let Some(ref m) = self.matcher {
+                format!("{:?}", m)
+            } else {
+                "_".to_string()
+            },
+            if let Some(ref s) = self.sub {
+                format!("{:?}", s)
+            } else {
+                "".to_string()
+            }
+        )
     }
 }
 
@@ -103,13 +105,15 @@ pub fn dot(s: WrappedState) -> String {
         for next in [node.borrow().out.clone(), node.borrow().out1.clone()].into_iter() {
             if let &Some(ref o) = next {
                 let nextid = format!("{:p}", o.as_ptr());
-                write!(&mut result,
-                       "\"{} {}\" -> \"{} {}\";\n",
-                       id,
-                       node.borrow().to_string(),
-                       nextid,
-                       o.borrow().to_string())
-                    .unwrap();
+                write!(
+                    &mut result,
+                    "\"{} {}\" -> \"{} {}\";\n",
+                    id,
+                    node.borrow().to_string(),
+                    nextid,
+                    o.borrow().to_string()
+                )
+                .unwrap();
 
                 if !visited.contains(&nextid) {
                     todo.push_front(o.clone());

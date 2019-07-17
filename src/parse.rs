@@ -23,7 +23,9 @@ struct ParseStack {
 
 impl ParseStack {
     fn new() -> ParseStack {
-        ParseStack { s: Vec::with_capacity(4) }
+        ParseStack {
+            s: Vec::with_capacity(4),
+        }
     }
     fn push(&mut self, p: Pattern) {
         self.s.push(p)
@@ -192,15 +194,13 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
                 }
             }
             ')' => return s.err("unopened ')'", 0),
-            '[' => {
-                match parse_char_set(s) {
-                    Ok((pat, newst)) => {
-                        stack.push(pat);
-                        s = newst;
-                    }
-                    Err(e) => return Err(e),
+            '[' => match parse_char_set(s) {
+                Ok((pat, newst)) => {
+                    stack.push(pat);
+                    s = newst;
                 }
-            }
+                Err(e) => return Err(e),
+            },
             ']' => return s.err("unopened ']'", 0),
             '{' => {
                 match split_in_parens(s.clone(), CURLY_BRACKETS) {
@@ -278,13 +278,23 @@ fn parse_specific_repetition<'a>(rep: ParseState<'a>, p: Pattern) -> Result<Repe
         }
     }
 
-    if nparts == 1 {
+    if nparts == 0 {
+        // {}
+        return rep.err("empty {} spec", 0);
+    } else if nparts == 1 {
         // {1}
         if let Ok(n) = u32::from_str(&String::from_iter(parts[0].unwrap().iter())) {
             return Ok(Repetition::Specific(p, n, None));
         } else {
-            return Err(format!("invalid repetition '{}'", String::from_iter(rep[..].iter())));
+            return Err(format!(
+                "invalid repetition '{}'",
+                String::from_iter(rep[..].iter())
+            ));
         }
+    } else if nparts == 2 {
+        // {2,3}
+        let min = u32::from_str(&String::from_iter(parts[0].unwrap().iter()));
+        let max = u32::from_str(&String::from_iter(parts[1].unwrap().iter()));
     }
 
     Err(String::from("abc"))
@@ -296,9 +306,10 @@ const CURLY_BRACKETS: (char, char) = ('{', '}');
 
 // split_in_parens returns two new ParseStates; the first one containing the contents of the
 // parenthesized clause starting at s[0], the second one containing the rest.
-fn split_in_parens<'a>(s: ParseState<'a>,
-                       parens: (char, char))
-                       -> Option<(ParseState<'a>, ParseState<'a>)> {
+fn split_in_parens<'a>(
+    s: ParseState<'a>,
+    parens: (char, char),
+) -> Option<(ParseState<'a>, ParseState<'a>)> {
     if let Some(end) = find_closing_paren(s.clone(), parens) {
         Some((s.sub(1, end), s.from(end + 1)))
     } else {
@@ -336,31 +347,54 @@ mod tests {
 
     #[test]
     fn test_find_closing_paren() {
-        for case in &[("(abc)de", Some(4)), ("()a", Some(1)), ("(abcd)", Some(5)), ("(abc", None)] {
+        for case in &[
+            ("(abc)de", Some(4)),
+            ("()a", Some(1)),
+            ("(abcd)", Some(5)),
+            ("(abc", None),
+        ] {
             let src: Vec<char> = case.0.chars().collect();
-            assert_eq!(find_closing_paren(ParseState::new(src.as_ref()), ROUND_PARENS),
-                       case.1);
+            assert_eq!(
+                find_closing_paren(ParseState::new(src.as_ref()), ROUND_PARENS),
+                case.1
+            );
         }
     }
 
     #[test]
     fn test_parse_charset() {
-        for case in &[("[a]", Pattern::Char('a')),
-                      ("[ab]", Pattern::CharSet(vec!['a', 'b'])),
-                      ("[ba-]", Pattern::CharSet(vec!['b', 'a', '-'])),
-                      ("[a-z]", Pattern::CharRange('a', 'z')),
-                      ("[a-z-]",
-                       Pattern::Alternate(vec![Pattern::CharRange('a', 'z'), Pattern::Char('-')])),
-                      ("[-a-z-]",
-                       Pattern::Alternate(vec![Pattern::CharRange('a', 'z'),
-                                               Pattern::CharSet(vec!['-', '-'])])),
-                      ("[a-zA-Z]",
-                       Pattern::Alternate(vec![Pattern::CharRange('a', 'z'),
-                                               Pattern::CharRange('A', 'Z')])),
-                      ("[a-zA-Z-]",
-                       Pattern::Alternate(vec![Pattern::CharRange('a', 'z'),
-                                               Pattern::CharRange('A', 'Z'),
-                                               Pattern::Char('-')]))] {
+        for case in &[
+            ("[a]", Pattern::Char('a')),
+            ("[ab]", Pattern::CharSet(vec!['a', 'b'])),
+            ("[ba-]", Pattern::CharSet(vec!['b', 'a', '-'])),
+            ("[a-z]", Pattern::CharRange('a', 'z')),
+            (
+                "[a-z-]",
+                Pattern::Alternate(vec![Pattern::CharRange('a', 'z'), Pattern::Char('-')]),
+            ),
+            (
+                "[-a-z-]",
+                Pattern::Alternate(vec![
+                    Pattern::CharRange('a', 'z'),
+                    Pattern::CharSet(vec!['-', '-']),
+                ]),
+            ),
+            (
+                "[a-zA-Z]",
+                Pattern::Alternate(vec![
+                    Pattern::CharRange('a', 'z'),
+                    Pattern::CharRange('A', 'Z'),
+                ]),
+            ),
+            (
+                "[a-zA-Z-]",
+                Pattern::Alternate(vec![
+                    Pattern::CharRange('a', 'z'),
+                    Pattern::CharRange('A', 'Z'),
+                    Pattern::Char('-'),
+                ]),
+            ),
+        ] {
             let src: Vec<char> = case.0.chars().collect();
             let st = ParseState::new(&src);
             assert_eq!(parse_char_set(st).unwrap().0, case.1);
@@ -369,10 +403,14 @@ mod tests {
 
     #[test]
     fn test_parse_subs() {
-        let case1 = ("a(b)c",
-                     Pattern::Concat(vec![Pattern::Char('a'),
-                                          Pattern::Submatch(Box::new(Pattern::Char('b'))),
-                                          Pattern::Char('c')]));
+        let case1 = (
+            "a(b)c",
+            Pattern::Concat(vec![
+                Pattern::Char('a'),
+                Pattern::Submatch(Box::new(Pattern::Char('b'))),
+                Pattern::Char('c'),
+            ]),
+        );
         let case2 = ("(b)", Pattern::Submatch(Box::new(Pattern::Char('b'))));
 
         for c in &[case1, case2] {
@@ -382,12 +420,18 @@ mod tests {
 
     #[test]
     fn test_parse_res() {
-        let case1 = ("a(Bcd)e",
-                     Pattern::Concat(vec![Pattern::Char('a'),
-                              Pattern::Submatch(Box::new(Pattern::Concat(vec![Pattern::Char('B'),
-                                                                          Pattern::Char('c'),
-                                                                          Pattern::Char('d')]))),
-                              Pattern::Char('e')]));
+        let case1 = (
+            "a(Bcd)e",
+            Pattern::Concat(vec![
+                Pattern::Char('a'),
+                Pattern::Submatch(Box::new(Pattern::Concat(vec![
+                    Pattern::Char('B'),
+                    Pattern::Char('c'),
+                    Pattern::Char('d'),
+                ]))),
+                Pattern::Char('e'),
+            ]),
+        );
 
         for c in &[case1] {
             assert_eq!(c.1, parse(c.0).unwrap());

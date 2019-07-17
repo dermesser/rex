@@ -170,21 +170,36 @@ mod tests {
     #[test]
     fn test_repr_optimize() {
         // case = (want, input)
-        let case1 =
-            (Pattern::Str("abc".to_string()),
-             Pattern::Concat(vec![Pattern::Char('a'), Pattern::Char('b'), Pattern::Char('c')]));
-        let case2 = (Pattern::Str("abcd".to_string()),
-                     Pattern::Concat(vec![Pattern::Str("a".to_string()),
-                                          Pattern::Char('b'),
-                                          Pattern::Str("cd".to_string())]));
-        let case3 = (Pattern::Concat(vec![Pattern::Str("abc".to_string()),
-                                          Pattern::Anchor(AnchorLocation::End),
-                                          Pattern::Char('d')]),
-                     Pattern::Concat(vec![Pattern::Char('a'),
-                                          Pattern::Char('b'),
-                                          Pattern::Char('c'),
-                                          Pattern::Anchor(AnchorLocation::End),
-                                          Pattern::Char('d')]));
+        let case1 = (
+            Pattern::Str("abc".to_string()),
+            Pattern::Concat(vec![
+                Pattern::Char('a'),
+                Pattern::Char('b'),
+                Pattern::Char('c'),
+            ]),
+        );
+        let case2 = (
+            Pattern::Str("abcd".to_string()),
+            Pattern::Concat(vec![
+                Pattern::Str("a".to_string()),
+                Pattern::Char('b'),
+                Pattern::Str("cd".to_string()),
+            ]),
+        );
+        let case3 = (
+            Pattern::Concat(vec![
+                Pattern::Str("abc".to_string()),
+                Pattern::Anchor(AnchorLocation::End),
+                Pattern::Char('d'),
+            ]),
+            Pattern::Concat(vec![
+                Pattern::Char('a'),
+                Pattern::Char('b'),
+                Pattern::Char('c'),
+                Pattern::Anchor(AnchorLocation::End),
+                Pattern::Char('d'),
+            ]),
+        );
 
         for c in vec![case1, case2, case3].into_iter() {
             assert_eq!(c.0, optimize::optimize(c.1));
@@ -193,47 +208,49 @@ mod tests {
 
     // /a(b|c)/
     fn simple_re0() -> Pattern {
-        Pattern::Concat(vec![Pattern::CharRange('a', 'a'),
-                             Pattern::Alternate(vec![((Pattern::Char('b'))),
-                                                     ((Pattern::Char('c')))])])
+        Pattern::Concat(vec![
+            Pattern::CharRange('a', 'a'),
+            Pattern::Alternate(vec![(Pattern::Char('b')), (Pattern::Char('c'))]),
+        ])
     }
     // Returns compiled form of /(a[bc])?(cd)*(e|f)+x{1,3}(g|hh|i)j{2,}klm/
     fn simple_re1() -> Pattern {
-        Pattern::Concat(vec!(
-                Pattern::Repeated(
-                        Box::new(
-                    Repetition::ZeroOrOnce(
-                            Pattern::Submatch(Box::new(Pattern::Concat(vec!(
-                                    Pattern::Char('a'), Pattern::CharRange('b', 'c')))))))),
-
-                Pattern::Repeated(
-                    Box::new(Repetition::ZeroOrMore(
-                            Pattern::Submatch(Box::new(Pattern::Concat(vec!(
-                                    Pattern::Char('c'), Pattern::Char('d')))))))),
-
-                Pattern::Submatch(
-                    Box::new((
-                            Pattern::Repeated(
-                                Box::new(Repetition::OnceOrMore(
-                                        Pattern::Alternate(vec!(
-                                                ((Pattern::Char('e'))),
-                                                ((Pattern::Char('f'))))))))))),
-
-
-                Pattern::Repeated(
-                    Box::new(Repetition::Specific(Pattern::Char('x'), 1, Some(3)))),
-
-                Pattern::Alternate(vec!(
-                    ((Pattern::Char('g'))),
-                    ((Pattern::Repeated(
-                                Box::new(Repetition::Specific(Pattern::Char('h'), 2, Some(2)))))),
-                    ((Pattern::Char('i'))))),
-
-                Pattern::Repeated(
-                    Box::new(Repetition::Specific(Pattern::Char('j'), 2, None))),
-
-                Pattern::Str("klm".to_string()),
-        ))
+        Pattern::Concat(vec![
+            Pattern::Repeated(Box::new(Repetition::ZeroOrOnce(Pattern::Submatch(
+                Box::new(Pattern::Concat(vec![
+                    Pattern::Char('a'),
+                    Pattern::CharRange('b', 'c'),
+                ])),
+            )))),
+            Pattern::Repeated(Box::new(Repetition::ZeroOrMore(Pattern::Submatch(
+                Box::new(Pattern::Concat(vec![
+                    Pattern::Char('c'),
+                    Pattern::Char('d'),
+                ])),
+            )))),
+            Pattern::Submatch(Box::new(
+                (Pattern::Repeated(Box::new(Repetition::OnceOrMore(Pattern::Alternate(vec![
+                    (Pattern::Char('e')),
+                    (Pattern::Char('f')),
+                ]))))),
+            )),
+            Pattern::Repeated(Box::new(Repetition::Specific(
+                Pattern::Char('x'),
+                1,
+                Some(3),
+            ))),
+            Pattern::Alternate(vec![
+                (Pattern::Char('g')),
+                (Pattern::Repeated(Box::new(Repetition::Specific(
+                    Pattern::Char('h'),
+                    2,
+                    Some(2),
+                )))),
+                (Pattern::Char('i')),
+            ]),
+            Pattern::Repeated(Box::new(Repetition::Specific(Pattern::Char('j'), 2, None))),
+            Pattern::Str("klm".to_string()),
+        ])
     }
 
     use compile::start_compile;

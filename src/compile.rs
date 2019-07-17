@@ -1,4 +1,3 @@
-
 use matcher::{self, wrap_matcher};
 use repr::{AnchorLocation, Pattern, Repetition};
 use state::{wrap_state, State, Submatch, WrappedState};
@@ -231,14 +230,16 @@ impl Compile for Repetition {
                 // the repeated pattern.
                 if let Some(max) = max_ {
                     for _ in 0..(max - min) {
-                        repetition.push(
-                            Pattern::Repeated(
-                                Box::new(Repetition::ZeroOrOnce(p.clone()))));
+                        repetition.push(Pattern::Repeated(Box::new(Repetition::ZeroOrOnce(
+                            p.clone(),
+                        ))));
                     }
                 } else {
                     // If no upper limit is set, append a ZeroOrMore state for the repeated
                     // pattern.
-                    repetition.push(Pattern::Repeated(Box::new(Repetition::ZeroOrMore(p.clone()))));
+                    repetition.push(Pattern::Repeated(Box::new(Repetition::ZeroOrMore(
+                        p.clone(),
+                    ))));
                 }
                 Pattern::Concat(repetition).to_state()
             }

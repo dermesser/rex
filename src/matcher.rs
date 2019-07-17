@@ -2,9 +2,9 @@
 //! matched against the conditions in a regular expression.
 #![allow(dead_code)]
 
+use std::fmt::Debug;
 use std::iter::FromIterator;
 use std::rc::Rc;
-use std::fmt::Debug;
 
 /// Matchee contains a character and position to match. It's used by the matching logic to check
 /// whether a certain position within a string is matched by a matcher. The driving logic is
@@ -72,7 +72,10 @@ impl StringMatcher {
 impl Matcher for StringMatcher {
     fn matches(&self, m: &Matchee) -> (bool, usize) {
         if m.ix + self.0.len() <= m.src.len() {
-            (m.src[m.ix..m.ix + self.0.len()].starts_with(&self.0), self.0.len())
+            (
+                m.src[m.ix..m.ix + self.0.len()].starts_with(&self.0),
+                self.0.len(),
+            )
         } else {
             (false, self.0.len())
         }

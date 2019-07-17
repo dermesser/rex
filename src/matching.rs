@@ -8,8 +8,8 @@ use std::cell::RefCell;
 use std::mem;
 use std::rc::Rc;
 
-use state::{WrappedState, Submatch};
 use matcher::Matchee;
+use state::{Submatch, WrappedState};
 
 #[derive(Clone, Debug)]
 pub struct MatchState {
@@ -177,10 +177,10 @@ pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use repr::*;
-    use state::*;
     use compile::*;
     use parse;
+    use repr::*;
+    use state::*;
 
     fn simple_re0() -> Pattern {
         (parse::parse("a(b+|bb|bbb|c+)$c$").unwrap())
@@ -189,18 +189,16 @@ mod tests {
     // /a(b|c)(xx)?$/
     fn raw_re() -> Pattern {
         Pattern::Concat(vec![
-                       Pattern::CharRange('a', 'a'),
-                       Pattern::Submatch(
-                           Box::new((Pattern::Alternate(
-                                       vec![
-                                       ((Pattern::Char('b'))),
-                                       ((Pattern::Char('c')))]
-                                       )))),
-                       Pattern::Submatch(Box::new((
-                                   Pattern::Repeated(Box::new(
-                                           Repetition::ZeroOrOnce(
-                                               Pattern::Str("xx".to_string()))))))),
-                       Pattern::Anchor(AnchorLocation::End),
+            Pattern::CharRange('a', 'a'),
+            Pattern::Submatch(Box::new(
+                (Pattern::Alternate(vec![(Pattern::Char('b')), (Pattern::Char('c'))])),
+            )),
+            Pattern::Submatch(Box::new(
+                (Pattern::Repeated(Box::new(Repetition::ZeroOrOnce(Pattern::Str(
+                    "xx".to_string(),
+                ))))),
+            )),
+            Pattern::Anchor(AnchorLocation::End),
         ])
     }
 
