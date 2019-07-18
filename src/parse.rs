@@ -300,7 +300,7 @@ fn parse_specific_repetition<'a>(rep: ParseState<'a>, p: Pattern) -> Result<Repe
         // {2,3}
         let min = errtostr(u32::from_str(&String::from_iter(parts[0].unwrap().iter())))?;
         let max = errtostr(u32::from_str(&String::from_iter(parts[1].unwrap().iter())))?;
-        return Ok(Repetition::Specific(p, min, Some(max)))
+        return Ok(Repetition::Specific(p, min, Some(max)));
     }
 
     Err(format!("invalid repetition pattern {:?}", &rep[..]))
@@ -458,7 +458,10 @@ mod tests {
 
     #[test]
     fn test_parse_repetition_manual() {
-        println!("digraph st {{ {} }}", dot(start_compile(&parse("[abc]{1,5}").unwrap())));
+        println!(
+            "digraph st {{ {} }}",
+            dot(start_compile(&parse("[abc]{1,5}").unwrap()))
+        );
     }
     #[test]
     fn test_parse_manual() {

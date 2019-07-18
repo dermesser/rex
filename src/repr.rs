@@ -228,12 +228,12 @@ mod tests {
                     Pattern::Char('d'),
                 ])),
             )))),
-            Pattern::Submatch(Box::new(
-                Pattern::Repeated(Box::new(Repetition::OnceOrMore(Pattern::Alternate(vec![
+            Pattern::Submatch(Box::new(Pattern::Repeated(Box::new(
+                Repetition::OnceOrMore(Pattern::Alternate(vec![
                     (Pattern::Char('e')),
                     (Pattern::Char('f')),
-                ])))),
-            )),
+                ])),
+            )))),
             Pattern::Repeated(Box::new(Repetition::Specific(
                 Pattern::Char('x'),
                 1,

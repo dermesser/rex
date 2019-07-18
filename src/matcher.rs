@@ -43,6 +43,9 @@ impl Matchee {
     pub fn reset(&mut self, n: usize) {
         self.ix = n;
     }
+    pub fn finished(&self) -> bool {
+        self.ix == self.src.len()
+    }
 }
 
 /// A Matcher matches parts of a Matchee (where a Matchee is a string to be matched). While
@@ -58,7 +61,7 @@ pub trait Matcher: Debug {
 pub struct CharMatcher(pub char);
 impl Matcher for CharMatcher {
     fn matches(&self, m: &Matchee) -> (bool, usize) {
-        (m.current() == self.0, 1)
+        (!m.finished() && m.current() == self.0, 1)
     }
 }
 
@@ -71,9 +74,9 @@ impl StringMatcher {
 }
 impl Matcher for StringMatcher {
     fn matches(&self, m: &Matchee) -> (bool, usize) {
-        if m.ix + self.0.len() <= m.src.len() {
+        if m.pos() + self.0.len() <= m.src.len() {
             (
-                m.src[m.ix..m.ix + self.0.len()].starts_with(&self.0),
+                m.src[m.pos()..m.pos() + self.0.len()].starts_with(&self.0),
                 self.0.len(),
             )
         } else {
@@ -86,7 +89,10 @@ impl Matcher for StringMatcher {
 pub struct CharRangeMatcher(pub char, pub char);
 impl Matcher for CharRangeMatcher {
     fn matches(&self, m: &Matchee) -> (bool, usize) {
-        (m.current() >= self.0 && m.current() <= self.1, 1)
+        (
+            !m.finished() && m.current() >= self.0 && m.current() <= self.1,
+            1,
+        )
     }
 }
 
@@ -94,7 +100,7 @@ impl Matcher for CharRangeMatcher {
 pub struct CharSetMatcher(pub Vec<char>);
 impl Matcher for CharSetMatcher {
     fn matches(&self, m: &Matchee) -> (bool, usize) {
-        (self.0.contains(&m.current()), 1)
+        (!m.finished() && self.0.contains(&m.current()), 1)
     }
 }
 
@@ -116,8 +122,8 @@ pub enum AnchorMatcher {
 impl Matcher for AnchorMatcher {
     fn matches(&self, m: &Matchee) -> (bool, usize) {
         match self {
-            &AnchorMatcher::Begin => (m.ix == 0, 0),
-            &AnchorMatcher::End => (m.ix == m.src.len(), 0),
+            &AnchorMatcher::Begin => (m.pos() == 0, 0),
+            &AnchorMatcher::End => (m.finished(), 0),
         }
     }
 }

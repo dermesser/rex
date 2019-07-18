@@ -112,36 +112,36 @@ pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
 
         // Iterate over all current states, see which match, and add the successors of matching
         // states to the states_next list.
-        for mut st in states.drain(..) {
-            let (next1, next2) = st.node.borrow().next_states();
+        for mut matchst in states.drain(..) {
+            let (next1, next2) = matchst.node.borrow().next_states();
 
             // Check if this node is a submatch start or end. If it is, the list of pending
             // submatches is cloned and the current position pushed (Start) or the most recent
             // submatch start popped and stored in the overall submatch list (End).
-            let sub = st.node.borrow().sub.clone();
+            let sub = matchst.node.borrow().sub.clone();
             match sub {
-                Some(Submatch::Start) => st.start_submatch(),
-                Some(Submatch::End) => st.stop_submatch(),
+                Some(Submatch::Start) => matchst.start_submatch(),
+                Some(Submatch::End) => matchst.stop_submatch(),
                 None => {}
             }
 
             // Found match (intentionally down here, after finalizing submatch processing). Only
             // update match if this match is longer than the previous one.
-            if next1.is_none() && next2.is_none() && st.matchee.pos() > longestmatch {
+            if next1.is_none() && next2.is_none() && matchst.matchee.pos() > longestmatch {
                 ismatch = true;
-                matches = st.submatches.borrow().clone();
-                longestmatch = st.matchee.pos();
+                matches = matchst.submatches.borrow().clone();
+                longestmatch = matchst.matchee.pos();
                 continue;
             }
             // longest_partial_match contains the furthest any substate has advanced into the
             // string.
-            if st.matchee.pos() > longest_partial_match {
-                longest_partial_match = st.matchee.pos();
+            if matchst.matchee.pos() > longest_partial_match {
+                longest_partial_match = matchst.matchee.pos();
             }
 
             let mut advance_by = 0;
             // Check if the current state matches.
-            if let Some((matched, howmany)) = st.node.borrow().matches(&st.matchee) {
+            if let Some((matched, howmany)) = matchst.node.borrow().matches(&matchst.matchee) {
                 // Current state didn't match, throw away.
                 if !matched {
                     continue;
@@ -154,16 +154,16 @@ pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
             if next1.is_some() && next2.is_some() {
                 // If the current state matched, or it didn't have a matcher, push next states into
                 // list of next states.
-                states_next.push(st.fork(next1.unwrap(), advance_by));
-                st.update(next2.unwrap(), advance_by);
-                states_next.push(st);
+                states_next.push(matchst.fork(next1.unwrap(), advance_by));
+                matchst.update(next2.unwrap(), advance_by);
+                states_next.push(matchst);
             } else if let Some(n1) = next1 {
                 // Reuse current state if only one successor (common case).
-                st.update(n1, advance_by);
-                states_next.push(st)
+                matchst.update(n1, advance_by);
+                states_next.push(matchst)
             } else if let Some(n2) = next2 {
-                st.update(n2, advance_by);
-                states_next.push(st);
+                matchst.update(n2, advance_by);
+                states_next.push(matchst);
             }
         }
         // Swap state lists, leaving states_next empty.
@@ -182,21 +182,20 @@ mod tests {
     use state::*;
 
     fn simple_re0() -> Pattern {
-        (parse::parse("a(b+|bb|bbb|c+){1,3}$c$").unwrap())
+        parse::parse("aa+$").unwrap()
     }
 
     // /a(b|c)(xx)?$/
     fn raw_re() -> Pattern {
         Pattern::Concat(vec![
             Pattern::CharRange('a', 'a'),
-            Pattern::Submatch(Box::new(
-                Pattern::Alternate(vec![(Pattern::Char('b')), (Pattern::Char('c'))]),
-            )),
-            Pattern::Submatch(Box::new(
-                Pattern::Repeated(Box::new(Repetition::ZeroOrOnce(Pattern::Str(
-                    "xx".to_string(),
-                )))),
-            )),
+            Pattern::Submatch(Box::new(Pattern::Alternate(vec![
+                (Pattern::Char('b')),
+                (Pattern::Char('c')),
+            ]))),
+            Pattern::Submatch(Box::new(Pattern::Repeated(Box::new(
+                Repetition::ZeroOrOnce(Pattern::Str("xx".to_string())),
+            )))),
             Pattern::Anchor(AnchorLocation::End),
         ])
     }
@@ -204,8 +203,8 @@ mod tests {
     #[test]
     fn test_match_simple() {
         let re = simple_re0();
-        // println!("{:?}", re);
-        println!("{:?}", do_match(start_compile(&re), "abbbbxxabb$c"));
+        println!("{:?}", re);
+        println!("{:?}", do_match(start_compile(&re), "aaab"));
         let dot = dot(start_compile(&re));
         println!("digraph st {{ {} }}", dot);
     }
