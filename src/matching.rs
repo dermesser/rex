@@ -65,6 +65,9 @@ impl MatchState {
 /// do_match starts the matching process. It tries to match the supplied compiled regex against the
 /// supplied string. If it fails, it skips ahead and tries later in the string (i.e., if the regex
 /// isn't anchored, it will do a full-text match).
+///
+/// The boolean component is true if the match succeeded. The Vec contains tuples of (start,
+/// one-past-end) for each submatch, starting with the implicit whole match.
 pub fn do_match(ws: WrappedState, s: &str) -> (bool, Vec<(usize, usize)>) {
     let mut ms = MatchState::new(s, ws);
     let (mut i, len) = (0, s.len());
