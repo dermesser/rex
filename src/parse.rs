@@ -206,7 +206,7 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
                     Some((rep, newst)) => {
                         if let Some(p) = stack.pop() {
                             let rep = parse_specific_repetition(rep, p)?;
-                            stack.push(Pattern::Repeated(Box::new(rep)));
+                            stack.push(rep);
                             s = newst;
                         } else {
                             return s.err("repetition {} without pattern to repeat", 0);
@@ -265,7 +265,7 @@ fn parse_char_set<'a>(s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), St
 }
 
 // Parse a repetition spec inside curly braces: {1} | {1,} | {,1} | {1,2}
-fn parse_specific_repetition<'a>(rep: ParseState<'a>, p: Pattern) -> Result<Repetition, String> {
+fn parse_specific_repetition<'a>(rep: ParseState<'a>, p: Pattern) -> Result<Pattern, String> {
     let mut nparts = 0;
     let mut parts: [Option<&[char]>; 2] = Default::default();
 
@@ -283,7 +283,9 @@ fn parse_specific_repetition<'a>(rep: ParseState<'a>, p: Pattern) -> Result<Repe
     } else if nparts == 1 {
         // {1}
         if let Ok(n) = u32::from_str(&String::from_iter(parts[0].unwrap().iter())) {
-            return Ok(Repetition::Specific(p, n, None));
+            return Ok(Pattern::Repeated(Box::new(Repetition::Specific(
+                p, n, None,
+            ))));
         } else {
             return Err(format!(
                 "invalid repetition '{}'",
@@ -297,10 +299,35 @@ fn parse_specific_repetition<'a>(rep: ParseState<'a>, p: Pattern) -> Result<Repe
                 Err(e) => Err(format!("{}", e)),
             }
         }
+        let (p0, p1) = (parts[0].unwrap(), parts[1].unwrap());
         // {2,3}
-        let min = errtostr(u32::from_str(&String::from_iter(parts[0].unwrap().iter())))?;
-        let max = errtostr(u32::from_str(&String::from_iter(parts[1].unwrap().iter())))?;
-        return Ok(Repetition::Specific(p, min, Some(max)));
+        if !p0.is_empty() && !p1.is_empty() {
+            let min = errtostr(u32::from_str(&String::from_iter(p0.iter())))?;
+            let max = errtostr(u32::from_str(&String::from_iter(p1.iter())))?;
+            return Ok(Pattern::Repeated(Box::new(Repetition::Specific(
+                p,
+                min,
+                Some(max),
+            ))));
+        } else if p0.is_empty() && !p1.is_empty() {
+            // {,3}
+            let min = 0;
+            let max = errtostr(u32::from_str(&String::from_iter(p1.iter())))?;
+            return Ok(Pattern::Repeated(Box::new(Repetition::Specific(
+                p,
+                min,
+                Some(max),
+            ))));
+        } else if !p0.is_empty() && p1.is_empty() {
+            // {3,}
+            let min = errtostr(u32::from_str(&String::from_iter(p0.iter())))?;
+            let repetition =
+                Pattern::Repeated(Box::new(Repetition::Specific(p.clone(), min, None)));
+            return Ok(Pattern::Concat(vec![
+                repetition,
+                Pattern::Repeated(Box::new(Repetition::ZeroOrMore(p))),
+            ]));
+        }
     }
 
     Err(format!("invalid repetition pattern {:?}", &rep[..]))
