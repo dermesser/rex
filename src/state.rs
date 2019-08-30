@@ -20,7 +20,7 @@ pub struct State {
     pub out: Option<WrappedState>,
     pub out1: Option<WrappedState>,
     // If matcher is none, this is an "empty" state.
-    pub matcher: Option<Rc<Box<Matcher>>>,
+    pub matcher: Option<Rc<Box<dyn Matcher>>>,
     // Tells the matching logic to record the start or end of a submatch.
     pub sub: Option<Submatch>,
 }

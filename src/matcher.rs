@@ -128,7 +128,7 @@ impl Matcher for AnchorMatcher {
     }
 }
 
-pub fn wrap_matcher(m: Box<Matcher>) -> Option<Rc<Box<Matcher>>> {
+pub fn wrap_matcher(m: Box<dyn Matcher>) -> Option<Rc<Box<dyn Matcher>>> {
     Some(Rc::new(m))
 }
 
