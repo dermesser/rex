@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn test_re1() {
         // println!("{:?}", start_compile(simple_re0()));
-        let dot = dot(start_compile(&simple_re1()));
+        let dot = dot(&start_compile(&simple_re1()));
         println!("digraph st {{ {} }}", dot);
     }
 }

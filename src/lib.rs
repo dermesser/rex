@@ -19,7 +19,8 @@ fn parse(re: &str) -> Result<repr::Pattern, String> {
 /// entire matched string. A submatch is a tuple of (start, end), where end is the index of the
 /// first character that isn't part of the submatch anymore (i.e. [start, end)).
 fn compile_and_match(re: &repr::Pattern, s: &str) -> (bool, Vec<(usize, usize)>) {
-    matching::do_match(compile::start_compile(re), s)
+    let compiled = compile::start_compile(re);
+    matching::do_match(&compiled, s)
 }
 
 /// Parse, compile, and match a regular expression. Not recommended for repeated use, as the
@@ -40,6 +41,5 @@ pub fn compile(re: &str) -> Result<state::CompiledRE, String> {
 /// tuples for all submatches, where the first element describes the match by the whole regular
 /// expression.
 pub fn match_re(re: &state::CompiledRE, s: &str) -> (bool, Vec<(usize, usize)>) {
-    let re = re.clone();
     matching::do_match(re, s)
 }

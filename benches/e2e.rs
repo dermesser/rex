@@ -31,7 +31,7 @@ fn bench_simplest_precompile(b: &mut Bencher) {
 fn bench_notorious(b: &mut Bencher) {
     let re = rex::compile("(x+x+)+y").unwrap();
     b.iter(|| {
-        assert!(rex::match_re(&re, "xxxxxxxxxxxy").0);
+        assert!(rex::match_re(&re, "xxxxxxxxxxy").0);
     });
 }
 

@@ -9,11 +9,11 @@ use std::mem;
 use std::rc::Rc;
 
 use matcher::Matchee;
-use state::{Submatch, WrappedState};
+use state::{Submatch, StateGraph, StateRef};
 
 #[derive(Clone, Debug)]
 pub struct MatchState {
-    node: WrappedState,
+    node: StateRef,
     matchee: Matchee,
     // The set of submatches encountered, indexed by the start of a submatch. If submatches
     // (with (start,end)) (1,3),(5,10) have been encountered, then submatches[1] = Some(3) and
@@ -27,7 +27,7 @@ pub struct MatchState {
 }
 
 impl MatchState {
-    fn new(s: &str, ws: WrappedState) -> MatchState {
+    fn new(s: &str, ws: StateRef) -> MatchState {
         MatchState {
             node: ws,
             matchee: Matchee::from_string(s),
@@ -35,13 +35,13 @@ impl MatchState {
             submatches_todo: Cow::Owned(Vec::new()),
         }
     }
-    fn fork(&self, next: WrappedState, advance: usize) -> MatchState {
+    fn fork(&self, next: StateRef, advance: usize) -> MatchState {
         let mut n = self.clone();
         n.matchee.advance(advance);
         n.node = next;
         n
     }
-    fn update(&mut self, next: WrappedState, advance: usize) {
+    fn update(&mut self, next: StateRef, advance: usize) {
         self.matchee.advance(advance);
         self.node = next;
     }
@@ -68,15 +68,15 @@ impl MatchState {
 ///
 /// The boolean component is true if the match succeeded. The Vec contains tuples of (start,
 /// one-past-end) for each submatch, starting with the implicit whole match.
-pub fn do_match(ws: WrappedState, s: &str) -> (bool, Vec<(usize, usize)>) {
-    let mut ms = MatchState::new(s, ws);
+pub fn do_match(sg: &StateGraph, s: &str) -> (bool, Vec<(usize, usize)>) {
+    let mut ms = MatchState::new(s, 0);
     let (mut i, len) = (0, s.len());
 
     // TODO: Find out if a failed match is definitive; an anchored regex can't match anywhere later
     // in the text.
     while i < len || i == 0 {
         ms.reset(i);
-        let m = start_match(ms.clone());
+        let m = start_match(sg, ms.clone());
         match m {
             // If the match fails, we skip as many characters as were matched at first.
             (false, skip, _) => i = skip + 1,
@@ -99,7 +99,7 @@ pub fn do_match(ws: WrappedState, s: &str) -> (bool, Vec<(usize, usize)>) {
 /// successful (in case a match fails, but matches some characters at the beginning); and a vector
 /// of submatches; if the entry at index I contains Some(J), then that means that there is a
 /// submatch starting at I extending to (J-1).
-pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
+pub fn start_match(sg: &StateGraph, m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
     let mut states = Vec::with_capacity(4);
     let mut states_next = Vec::with_capacity(4);
     states.push(m);
@@ -116,15 +116,15 @@ pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
         // Iterate over all current states, see which match, and add the successors of matching
         // states to the states_next list.
         for mut matchst in states.drain(..) {
-            let (next1, next2) = matchst.node.borrow().next_states();
+            let (next1, next2) = sg[matchst.node].next_states();
 
             // Check if this node is a submatch start or end. If it is, the list of pending
             // submatches is cloned and the current position pushed (Start) or the most recent
             // submatch start popped and stored in the overall submatch list (End).
-            let sub = matchst.node.borrow().sub.clone();
+            let sub = sg[matchst.node].sub.as_ref();
             match sub {
-                Some(Submatch::Start) => matchst.start_submatch(),
-                Some(Submatch::End) => matchst.stop_submatch(),
+                Some(&Submatch::Start) => matchst.start_submatch(),
+                Some(&Submatch::End) => matchst.stop_submatch(),
                 None => {}
             }
 
@@ -144,7 +144,7 @@ pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
 
             let mut advance_by = 0;
             // Check if the current state matches.
-            if let Some((matched, howmany)) = matchst.node.borrow().matches(&matchst.matchee) {
+            if let Some((matched, howmany)) = sg[matchst.node].matches(&matchst.matchee) {
                 // Current state didn't match, throw away.
                 if !matched {
                     continue;
@@ -211,8 +211,8 @@ mod tests {
     fn test_match_simple() {
         let re = simple_re0();
         println!("{:?}", re);
-        println!("{:?}", do_match(start_compile(&re), "aaab"));
-        let dot = dot(start_compile(&re));
+        println!("{:?}", do_match(&start_compile(&re), "aaab"));
+        let dot = dot(&start_compile(&re));
         println!("digraph st {{ {} }}", dot);
     }
 }

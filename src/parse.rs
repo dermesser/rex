@@ -484,7 +484,7 @@ mod tests {
     fn test_parse_repetition_manual() {
         println!(
             "digraph st {{ {} }}",
-            dot(start_compile(&parse("[abc]{1,5}").unwrap()))
+            dot(&start_compile(&parse("[abc]{1,5}").unwrap()))
         );
     }
     #[test]
@@ -492,7 +492,7 @@ mod tests {
         let rep = parse("a|[bed]|(c|d|e)|f").unwrap();
         println!("{:?}", rep.clone());
 
-        let dot = dot(start_compile(&rep));
+        let dot = dot(&start_compile(&rep));
         println!("digraph st {{ {} }}", dot);
     }
 

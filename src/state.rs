@@ -3,22 +3,33 @@
 //! the repr module.
 #![allow(dead_code)]
 
-use std::cell::RefCell;
 use std::collections::HashSet;
 use std::collections::LinkedList;
 use std::fmt::Write;
 use std::iter::FromIterator;
 use std::rc::Rc;
+use std::vec::Vec;
 
 use matcher::{Matchee, Matcher};
+
+/// StateGraph is the graph of states that the interpreter traverses while matching a regular
+/// expression. It is represented as flat vector. The first element is the State node to start the
+/// evaluation with.
+pub type StateGraph = Vec<State>;
+
+/// StateRef is a reference to a state in a StateGraph.
+pub type StateRef = usize;
+
+/// CompiledRE is a compiled regular expression that can be used for matching.
+pub type CompiledRE = StateGraph;
 
 /// State is a single state that the evaluation can be in. It contains several output states as
 /// well as a matcher.
 #[derive(Debug, Default, Clone)]
 pub struct State {
     // Possible following state(s).
-    pub out: Option<WrappedState>,
-    pub out1: Option<WrappedState>,
+    pub out: Option<StateRef>,
+    pub out1: Option<StateRef>,
     // If matcher is none, this is an "empty" state.
     pub matcher: Option<Rc<Box<dyn Matcher>>>,
     // Tells the matching logic to record the start or end of a submatch.
@@ -31,18 +42,8 @@ pub enum Submatch {
     End,
 }
 
-/// WrappedState is a shared pointer to a state node.
-pub type WrappedState = Rc<RefCell<State>>;
-
-/// CompiledRE is a compiled regular expression that can be used for matching.
-pub type CompiledRE = WrappedState;
-
-pub fn wrap_state(s: State) -> WrappedState {
-    Rc::new(RefCell::new(s))
-}
-
 impl State {
-    pub fn patch(&mut self, next: WrappedState) {
+    pub fn patch(&mut self, next: StateRef) {
         if self.out.is_none() {
             self.out = Some(next);
         } else if self.out1.is_none() {
@@ -66,7 +67,7 @@ impl State {
     }
 
     /// Returns the following states, if present. Returns (None, None) if it's the final node.
-    pub fn next_states(&self) -> (Option<WrappedState>, Option<WrappedState>) {
+    pub fn next_states(&self) -> (Option<StateRef>, Option<StateRef>) {
         (self.out.clone(), self.out1.clone())
     }
 
@@ -88,38 +89,39 @@ impl State {
 }
 
 /// dot converts a graph starting with s into a Dot graph.
-pub fn dot(s: WrappedState) -> String {
+pub fn dot(stateg: &StateGraph) -> String {
     let mut result = String::new();
 
     let mut visited = HashSet::new();
-    let mut todo = LinkedList::from_iter(vec![s]);
+    let mut todo = LinkedList::from_iter(vec![0 as StateRef]);
+    let mut id = 0;
 
     loop {
+        id += 1;
         if todo.is_empty() {
             break;
         }
-        let node = todo.pop_front().unwrap();
-        let id = format!("{:?}", node.as_ptr());
+        let current = todo.pop_front().unwrap();
         if visited.contains(&id) {
             continue;
         }
         visited.insert(id.clone());
 
-        for next in [node.borrow().out.clone(), node.borrow().out1.clone()].into_iter() {
-            if let &Some(ref o) = next {
-                let nextid = format!("{:p}", o.as_ptr());
+        for next in [stateg[current].out.clone(), stateg[current].out1.clone()].into_iter() {
+            if let &Some(nextid) = next {
+                let o = &stateg[nextid];
                 write!(
                     &mut result,
                     "\"{} {}\" -> \"{} {}\";\n",
                     id,
-                    node.borrow().to_string(),
+                    stateg[current].to_string(),
                     nextid,
-                    o.borrow().to_string()
+                    o.to_string(),
                 )
                 .unwrap();
 
                 if !visited.contains(&nextid) {
-                    todo.push_front(o.clone());
+                    todo.push_front(nextid);
                 }
             }
         }

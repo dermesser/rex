@@ -1,49 +1,56 @@
 use matcher::{self, wrap_matcher};
 use repr::{AnchorLocation, Pattern, Repetition};
-use state::{wrap_state, State, Submatch, WrappedState};
+use state::{State, Submatch, StateGraph, StateRef};
 
 /// Types implementing Compile can be compiled into a state graph.
 pub trait Compile {
     /// to_state returns the start node of a subgraph, and a list of pointers that need to be
     /// connected to the following subgraph. The list can contain the first tuple element.
-    fn to_state(&self) -> (WrappedState, Vec<WrappedState>);
+    fn to_state(&self, sg: &mut StateGraph) -> (StateRef, Vec<StateRef>);
 }
 
 /// start_compile takes a parsed regex as RETree and returns the first node of a directed graph
 /// representing the regex.
-pub fn start_compile(re: &Pattern) -> WrappedState {
-    let (s, sp) = re.to_state();
+pub fn start_compile(re: &Pattern) -> StateGraph {
+    let mut state_graph = Vec::with_capacity(64);
 
     let mut before = State::default();
     before.sub = Some(Submatch::Start);
-    before.out = Some(s);
+    // First element in graph vector.
+    let beforeref = 0;
+    state_graph.push(before);
+
+    let (s, sp) = re.to_state(&mut state_graph);
+    state_graph[beforeref].out = Some(s);
+
     let mut end = State::default();
     end.sub = Some(Submatch::End);
+    let endref = state_graph.len();
+    state_graph.push(end);
 
-    let endw = wrap_state(end);
     // Connect all loose ends with the final node.
     for p in sp {
-        p.borrow_mut().patch(endw.clone());
+        state_graph[p].patch(endref);
     }
-    wrap_state(before)
+    state_graph
 }
 
 impl Compile for Pattern {
-    fn to_state(&self) -> (WrappedState, Vec<WrappedState>) {
+    fn to_state(&self, sg: &mut StateGraph) -> (StateRef, Vec<StateRef>) {
         match *self {
             Pattern::Concat(ref ps) => {
                 if ps.is_empty() {
                     panic!("invalid Concat len: 0")
                 } else if ps.len() == 1 {
-                    return ps[0].to_state();
+                    return ps[0].to_state(sg);
                 }
 
-                let (init, mut lastp) = ps[0].to_state();
+                let (init, mut lastp) = ps[0].to_state(sg);
                 for i in 1..ps.len() {
-                    let (next, nextp) = ps[i].to_state();
+                    let (next, nextp) = ps[i].to_state(sg);
                     // Connect all loose ends with the new node.
                     for p in lastp {
-                        p.borrow_mut().patch(next.clone());
+                        sg[p].patch(next);
                     }
                     // Remember the loose ends of this one.
                     lastp = nextp;
@@ -51,95 +58,111 @@ impl Compile for Pattern {
                 (init, lastp)
             }
             Pattern::Any => {
-                let s = wrap_state(State {
+                let s = State {
                     out: None,
                     out1: None,
                     matcher: wrap_matcher(Box::new(matcher::AnyMatcher)),
                     sub: None,
-                });
-                (s.clone(), vec![s])
+                };
+                let sref = sg.len();
+                sg.push(s);
+                (sref, vec![sref])
             }
             Pattern::Char(c) => {
-                let s = wrap_state(State {
+                let s = State {
                     out: None,
                     out1: None,
                     matcher: wrap_matcher(Box::new(matcher::CharMatcher(c))),
                     sub: None,
-                });
-                (s.clone(), vec![s])
+                };
+                let sref = sg.len();
+                sg.push(s);
+                (sref, vec![sref])
             }
             Pattern::Str(ref s) => {
-                let s = wrap_state(State {
+                let s = State {
                     out: None,
                     out1: None,
                     matcher: wrap_matcher(Box::new(matcher::StringMatcher::new(s))),
                     sub: None,
-                });
-                (s.clone(), vec![s])
+                };
+                let sref = sg.len();
+                sg.push(s);
+                (sref, vec![sref])
             }
             Pattern::CharRange(from, to) => {
-                let s = wrap_state(State {
+                let s = State {
                     out: None,
                     out1: None,
                     matcher: wrap_matcher(Box::new(matcher::CharRangeMatcher(from, to))),
                     sub: None,
-                });
-                (s.clone(), vec![s])
+                };
+                let sref = sg.len();
+                sg.push(s);
+                (sref, vec![sref])
             }
             Pattern::CharSet(ref set) => {
-                let s = wrap_state(State {
+                let s = State {
                     out: None,
                     out1: None,
                     matcher: wrap_matcher(Box::new(matcher::CharSetMatcher(set.clone()))),
                     sub: None,
-                });
-                (s.clone(), vec![s])
+                };
+                let sref = sg.len();
+                sg.push(s);
+                (sref, vec![sref])
             }
-            Pattern::Alternate(ref r) => alternate(&r, &vec![]),
+            Pattern::Alternate(ref r) => alternate(sg, &r, &vec![]),
             Pattern::Submatch(ref p) => {
-                let (s, sp) = p.to_state();
-                let before = wrap_state(State {
+                let (s, sp) = p.to_state(sg);
+                let before = State {
                     out: Some(s),
                     out1: None,
                     matcher: None,
                     sub: Some(Submatch::Start),
-                });
-                let after = wrap_state(State {
+                };
+                let after = State {
                     out: None,
                     out1: None,
                     matcher: None,
                     sub: Some(Submatch::End),
-                });
+                };
+                let beforeref = sg.len();
+                sg.push(before);
+                let afterref = sg.len();
+                sg.push(after);
                 for p in sp {
-                    p.borrow_mut().patch(after.clone());
+                    sg[p].patch(afterref);
                 }
-                (before, vec![after])
+                (beforeref, vec![afterref])
             }
-            Pattern::Repeated(ref p) => p.to_state(),
+            Pattern::Repeated(ref p) => p.to_state(sg),
             Pattern::Anchor(ref loc) => {
                 let mut m = matcher::AnchorMatcher::Begin;
                 match loc {
                     &AnchorLocation::End => m = matcher::AnchorMatcher::End,
                     _ => (),
                 };
-                let s = wrap_state(State {
+                let s = State {
                     out: None,
                     out1: None,
                     matcher: wrap_matcher(Box::new(m)),
                     sub: None,
-                });
-                (s.clone(), vec![s])
+                };
+                let sref = sg.len();
+                sg.push(s);
+                (sref, vec![sref])
             }
         }
     }
 }
 
 // alternate compiles a list of patterns into a graph that accepts any one of the patterns.
-fn alternate(ps: &[Pattern], to_patch: &[WrappedState]) -> (WrappedState, Vec<WrappedState>) {
+fn alternate(sg: &mut StateGraph, ps: &[Pattern], to_patch: &[StateRef]) -> (StateRef, Vec<StateRef>) {
     if ps.len() == 1 {
-        let (s, sp) = ps[0].to_state();
+        let (s, sp) = ps[0].to_state(sg);
         for e in to_patch {
-            e.borrow_mut().patch(s.clone());
+            sg[*e].patch(s);
         }
         (s, sp)
     } else {
@@ -150,69 +173,81 @@ fn alternate(ps: &[Pattern], to_patch: &[WrappedState]) -> (WrappedState, Vec<Wr
             sub: None,
         };
         let mid = ps.len() / 2;
-        let (left, mut leftpatch) = alternate(&ps[..mid], &vec![]);
-        let (right, mut rightpatch) = alternate(&ps[mid..], &vec![]);
+        let (left, mut leftpatch) = alternate(sg, &ps[..mid], &vec![]);
+        let (right, mut rightpatch) = alternate(sg, &ps[mid..], &vec![]);
         init.patch(left);
         init.patch(right);
         leftpatch.append(&mut rightpatch);
-        (wrap_state(init), leftpatch)
+        let initref = sg.len();
+        sg.push(init);
+        (initref, leftpatch)
     }
 }
 
 impl Compile for Repetition {
-    fn to_state(&self) -> (WrappedState, Vec<WrappedState>) {
+    fn to_state(&self, sg: &mut StateGraph) -> (StateRef, Vec<StateRef>) {
         match *self {
             Repetition::ZeroOrOnce(ref p) => {
-                let (s, to_patch) = p.to_state();
-                let after = wrap_state(State {
+                let (s, to_patch) = p.to_state(sg);
+                let after = State {
                     out: None,
                     out1: None,
                     matcher: None,
                     sub: None,
-                });
-                let before = wrap_state(State {
-                    out: Some(s.clone()),
-                    out1: Some(after.clone()),
+                };
+                let afterref = sg.len();
+                sg.push(after);
+                let before = State {
+                    out: Some(s),
+                    out1: Some(afterref),
                     matcher: None,
                     sub: None,
-                });
+                };
+                let beforeref = sg.len();
+                sg.push(before);
                 for p in to_patch {
-                    p.borrow_mut().patch(after.clone());
+                    sg[p].patch(afterref);
                 }
-                (before, vec![after])
+                (beforeref, vec![afterref])
             }
             Repetition::ZeroOrMore(ref p) => {
-                let (s, to_patch) = p.to_state();
-                let before = wrap_state(State {
+                let (s, to_patch) = p.to_state(sg);
+                let before = State {
                     out: Some(s.clone()),
                     out1: None,
                     matcher: None,
                     sub: None,
-                });
-                let after = wrap_state(State {
+                };
+                let beforeref = sg.len();
+                sg.push(before);
+                let after = State {
                     out: Some(s.clone()),
                     out1: None,
                     matcher: None,
                     sub: None,
-                });
-                before.borrow_mut().patch(after.clone());
+                };
+                let afterref = sg.len();
+                sg.push(after);
+                sg[beforeref].patch(afterref);
                 for p in to_patch {
-                    p.borrow_mut().patch(after.clone());
+                    sg[p].patch(afterref);
                 }
-                (before, vec![after])
+                (beforeref, vec![afterref])
             }
             Repetition::OnceOrMore(ref p) => {
-                let (s, to_patch) = p.to_state();
-                let after = wrap_state(State {
+                let (s, to_patch) = p.to_state(sg);
+                let after = State {
                     out: Some(s.clone()),
                     out1: None,
                     matcher: None,
                     sub: None,
-                });
+                };
+                let afterref = sg.len();
+                sg.push(after);
                 for p in to_patch {
-                    p.borrow_mut().patch(after.clone());
+                    sg[p].patch(afterref);
                 }
-                (s, vec![after])
+                (s, vec![afterref])
             }
             // Specific is 'min' concatenations of a simple state and 'max - min' concatenations of
             // a ZeroOrOnce state.
@@ -241,7 +276,7 @@ impl Compile for Repetition {
                         p.clone(),
                     ))));
                 }
-                Pattern::Concat(repetition).to_state()
+                Pattern::Concat(repetition).to_state(sg)
             }
         }
     }
