@@ -94,18 +94,16 @@ pub fn dot(stateg: &StateGraph) -> String {
 
     let mut visited = HashSet::new();
     let mut todo = LinkedList::from_iter(vec![0 as StateRef]);
-    let mut id = 0;
 
     loop {
-        id += 1;
         if todo.is_empty() {
             break;
         }
         let current = todo.pop_front().unwrap();
-        if visited.contains(&id) {
+        if visited.contains(&current) {
             continue;
         }
-        visited.insert(id.clone());
+        visited.insert(current);
 
         for next in [stateg[current].out.clone(), stateg[current].out1.clone()].into_iter() {
             if let &Some(nextid) = next {
@@ -113,7 +111,7 @@ pub fn dot(stateg: &StateGraph) -> String {
                 write!(
                     &mut result,
                     "\"{} {}\" -> \"{} {}\";\n",
-                    id,
+                    current,
                     stateg[current].to_string(),
                     nextid,
                     o.to_string(),
