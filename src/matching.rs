@@ -74,7 +74,7 @@ pub fn do_match(ws: WrappedState, s: &str) -> (bool, Vec<(usize, usize)>) {
 
     // TODO: Find out if a failed match is definitive; an anchored regex can't match anywhere later
     // in the text.
-    while i < len {
+    while i < len || i == 0 {
         ms.reset(i);
         let m = start_match(ms.clone());
         match m {
@@ -130,7 +130,7 @@ pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
 
             // Found match (intentionally down here, after finalizing submatch processing). Only
             // update match if this match is longer than the previous one.
-            if next1.is_none() && next2.is_none() && matchst.matchee.pos() > longestmatch {
+            if next1.is_none() && next2.is_none() && (matchst.matchee.pos() > longestmatch || longestmatch == 0) {
                 ismatch = true;
                 matches = matchst.submatches.borrow().clone();
                 longestmatch = matchst.matchee.pos();

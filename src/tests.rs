@@ -2,13 +2,17 @@
 
 //! A general test suite aiming for wide coverage of positive and negative matches.
 
-use crate::{compile, matching, parse, repr};
+use crate::{compile, matching, parse, repr, state};
 
 fn match_re(re: &str, s: &str) -> (bool, Vec<(usize, usize)>) {
     let parsed = parse::parse(re).unwrap();
     let optimized = repr::optimize::optimize(parsed);
     let ready = compile::start_compile(&optimized);
     matching::do_match(ready, s)
+}
+
+fn render_graph(re: &str) {
+    println!("digraph st {{ {} }}", state::dot(compile::start_compile(parse::parse(re).as_ref().unwrap())));
 }
 
 #[test]
@@ -30,8 +34,7 @@ fn test_specific_repeat() {
     assert!(match_re("a{1,3}", "aaaa").0);
 
     assert!(match_re("a?", "a").0);
-    // (bug)
-    //assert!(match_re("a?", "").0);
+    assert!(match_re("a?", "").0);
     assert!(match_re("xa?", "x").0);
 
     assert!(!match_re("a{1,3}$", "aaaa").0);
@@ -43,8 +46,8 @@ fn test_specific_repeat() {
     assert!(match_re("a{3}", "aaa").0);
     assert!(match_re("a{0,3}", "a").0);
     assert!(match_re("xa{,3}", "x").0);
-    // (bug)
-    //assert!(match_re("xa{,3}", "").0);
+    assert!(match_re("a{,3}", "").0);
+    assert!(match_re("xa{,3}", "x").0);
     assert!(match_re("a{,3}", "a").0);
     assert!(match_re("a{,3}", "aa").0);
     assert!(match_re("a{,3}", "aaa").0);
