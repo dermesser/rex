@@ -16,6 +16,11 @@ fn render_graph(re: &str) {
 }
 
 #[test]
+fn test_notorious_graph() {
+    render_graph("(x+x+)+y");
+}
+
+#[test]
 fn test_simple_repeat() {
     assert!(match_re("a+", "aaa").0);
     assert!(match_re("aaa+", "aaa").0);

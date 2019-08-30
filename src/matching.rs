@@ -154,6 +154,10 @@ pub fn start_match(m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
 
             // We only clone the current state if there's a fork in the graph. Otherwise we reuse
             // the old state.
+            //
+            // NOTE: This is what causes exponential cost of parsing "notorious" regular
+            // expressions. It is easy to implement; it would be better to at most create one new
+            // state, and construct more lazily.
             if next1.is_some() && next2.is_some() {
                 // If the current state matched, or it didn't have a matcher, push next states into
                 // list of next states.
