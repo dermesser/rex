@@ -34,6 +34,9 @@ pub enum Submatch {
 /// WrappedState is a shared pointer to a state node.
 pub type WrappedState = Rc<RefCell<State>>;
 
+/// CompiledRE is a compiled regular expression that can be used for matching.
+pub type CompiledRE = WrappedState;
+
 pub fn wrap_state(s: State) -> WrappedState {
     Rc::new(RefCell::new(s))
 }
