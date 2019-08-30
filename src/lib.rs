@@ -9,6 +9,7 @@ mod state;
 
 mod tests;
 
+pub use state::dot as debug_graph_to_dot;
 
 fn parse(re: &str) -> Result<repr::Pattern, String> {
     return parse::parse(re);
@@ -27,13 +28,13 @@ fn compile_and_match(re: &repr::Pattern, s: &str) -> (bool, Vec<(usize, usize)>)
 /// regular expression will be compiled every time. Use `compile()` and `match_re()` to make this
 /// more efficient (about 3x faster).
 pub fn match_re_str(re: &str, s: &str) -> Result<(bool, Vec<(usize, usize)>), String> {
-    return Ok(compile_and_match(&parse::parse(re)?, s));
+    return Ok(compile_and_match(&repr::optimize::optimize(parse::parse(re)?), s));
 }
 
 /// Compile a regular expression into a representation that can be directly used for matching with
 /// `match_re()`.
 pub fn compile(re: &str) -> Result<state::CompiledRE, String> {
-    Ok(compile::start_compile(&parse(re)?))
+    Ok(compile::start_compile(&repr::optimize::optimize(parse(re)?)))
 }
 
 /// Match a regular expression compiled with `compile()` against a string. Returns a tuple of a
