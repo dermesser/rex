@@ -32,6 +32,8 @@ fn test_specific_repeat() {
     assert!(match_re("a{1,3}", "aa").0);
     assert!(match_re("a{1,3}", "aaa").0);
     assert!(match_re("a{1,3}", "aaaa").0);
+    assert!(!match_re("a{1,3}$", "aaaa").0);
+    assert_eq!(3, match_re("a{1,3}", "aaaa").1[0].1);
 
     assert!(match_re("a?", "a").0);
     assert!(match_re("a?", "").0);
@@ -44,13 +46,15 @@ fn test_specific_repeat() {
     assert_eq!(vec![(1, 4)], match_re("a{1,3}$", "xaaa").1);
 
     assert!(match_re("a{3}", "aaa").0);
+    assert!(!match_re("a{3}", "aa").0);
+    assert!(match_re("xa{,3}", "x").0);
     assert!(match_re("a{0,3}", "a").0);
-    assert!(match_re("xa{,3}", "x").0);
     assert!(match_re("a{,3}", "").0);
-    assert!(match_re("xa{,3}", "x").0);
     assert!(match_re("a{,3}", "a").0);
     assert!(match_re("a{,3}", "aa").0);
+    assert!(match_re("a{0,3}", "aa").0);
     assert!(match_re("a{,3}", "aaa").0);
+    assert!(match_re("a{2,3}", "aaa").0);
 
     assert!(match_re("a{3,}", "aaa").0);
     assert!(match_re("a{3,}", "aaaa").0);
