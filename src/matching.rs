@@ -3,7 +3,7 @@
 
 #![allow(dead_code)]
 
-use std::borrow::Cow;
+use std::ops::Deref;
 use std::cell::RefCell;
 use std::mem;
 use std::rc::Rc;
@@ -23,7 +23,7 @@ pub struct MatchState {
     // need a Rc<RefCell<Vec<Vec<usize>>>> :-)
     submatches: Rc<RefCell<Vec<Option<usize>>>>,
     // We need to clone the submatches queue only rarely (when a submatch starts or ends).
-    submatches_todo: Cow<'static, Vec<usize>>,
+    submatches_todo: Rc<Vec<usize>>,
 }
 
 impl MatchState {
@@ -32,7 +32,7 @@ impl MatchState {
             node: ws,
             matchee: Matchee::from_string(s),
             submatches: Rc::new(RefCell::new(vec![None; s.len()])),
-            submatches_todo: Cow::Owned(Vec::new()),
+            submatches_todo: Rc::new(Vec::with_capacity(4)),
         }
     }
     fn fork(&self, next: StateRef, advance: usize) -> MatchState {
@@ -47,16 +47,21 @@ impl MatchState {
     }
     fn reset(&mut self, new_start: usize) {
         self.submatches = Rc::new(RefCell::new(vec![None; self.matchee.len()]));
-        self.submatches_todo.to_mut().clear();
+        self.submatches_todo = Rc::new(Vec::with_capacity(4));
         self.matchee.reset(new_start);
     }
     fn start_submatch(&mut self) {
         if self.matchee.pos() < self.matchee.len() {
-            self.submatches_todo.to_mut().push(self.matchee.pos());
+            let mut new_submatches = self.submatches_todo.deref().clone();
+            new_submatches.push(self.matchee.pos());
+            self.submatches_todo = Rc::new(new_submatches);
         }
     }
     fn stop_submatch(&mut self) {
-        if let Some(begin) = self.submatches_todo.to_mut().pop() {
+        if self.submatches_todo.deref().len() > 0 {
+            let mut new_submatches = self.submatches_todo.deref().clone();
+            let begin = new_submatches.pop().unwrap();
+            self.submatches_todo = Rc::new(new_submatches);
             self.submatches.borrow_mut()[begin] = Some(self.matchee.pos());
         }
     }
