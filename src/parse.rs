@@ -131,10 +131,6 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
         }
 
         match s[0] {
-            c if c.is_alphanumeric() => {
-                stack.push(Pattern::Char(c));
-                s = s.from(1);
-            }
             '.' => {
                 stack.push(Pattern::Any);
                 s = s.from(1);
@@ -215,8 +211,9 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
                     None => return s.err("unmatched {", s.len()),
                 };
             }
-            _ => {
-                return s.err("unimplemented pattern", 0);
+            c => {
+                stack.push(Pattern::Char(c));
+                s = s.from(1);
             }
         }
     }
