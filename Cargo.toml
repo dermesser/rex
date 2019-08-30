@@ -7,6 +7,7 @@ authors = ["Lewin Bormann <lewin@lewin-bormann.info>"]
 
 [dev-dependencies]
 bencher = "0.1"
+regex = "1.2"
 
 [[bench]]
 name = "e2e"
