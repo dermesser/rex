@@ -4,3 +4,10 @@ version = "0.1.0"
 authors = ["Lewin Bormann <lewin@lewin-bormann.info>"]
 
 [dependencies]
+
+[dev-dependencies]
+bencher = "0.1"
+
+[[bench]]
+name = "e2e"
+harness = false
