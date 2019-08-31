@@ -5,10 +5,7 @@
 use crate::{compile, matching, parse, repr};
 
 fn match_re(re: &str, s: &str) -> (bool, Vec<(usize, usize)>) {
-    let parsed = parse::parse(re).unwrap();
-    let optimized = repr::optimize::optimize(parsed);
-    let ready = compile::start_compile(&optimized);
-    matching::do_match(&ready, s)
+    crate::match_re_str(re, s).unwrap()
 }
 
 #[test]
