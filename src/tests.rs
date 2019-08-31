@@ -2,7 +2,7 @@
 
 //! A general test suite aiming for wide coverage of positive and negative matches.
 
-use crate::{compile, matching, parse, repr, state};
+use crate::{compile, matching, parse, repr};
 
 fn match_re(re: &str, s: &str) -> (bool, Vec<(usize, usize)>) {
     let parsed = parse::parse(re).unwrap();
@@ -11,13 +11,9 @@ fn match_re(re: &str, s: &str) -> (bool, Vec<(usize, usize)>) {
     matching::do_match(&ready, s)
 }
 
-fn render_graph(re: &str) {
-    println!("digraph st {{ {} }}", state::dot(&compile::start_compile(parse::parse(re).as_ref().unwrap())));
-}
-
 #[test]
 fn test_notorious_graph() {
-    render_graph("(x+x+)+y");
+    println!("{}", crate::render_graph("(x+x+)+y"));
 }
 
 #[test]
