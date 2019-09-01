@@ -1,3 +1,4 @@
 target/
+kcov-out/
 Cargo.lock
 .+png$
