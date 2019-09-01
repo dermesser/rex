@@ -3,13 +3,13 @@
 
 #![allow(dead_code)]
 
-use std::ops::Deref;
 use std::cell::RefCell;
 use std::mem;
+use std::ops::Deref;
 use std::rc::Rc;
 
 use matcher::Matchee;
-use state::{Submatch, StateGraph, StateRef};
+use state::{StateGraph, StateRef, Submatch};
 
 #[derive(Clone, Debug)]
 pub struct MatchState {
@@ -69,9 +69,16 @@ impl MatchState {
     }
     fn debug(&self, sg: &StateGraph) -> String {
         let m = self.matchee.string();
-        let out = sg[self.node].out.map_or("".to_owned(), |ix| sg[ix].to_string());
-        let out1 = sg[self.node].out1.map_or("".to_owned(), |ix| sg[ix].to_string());
-        let full = format!("{}   (<{}> next: 1. <{:?}> {} 2. <{:?}> {})\n", m, self.node, sg[self.node].out, out, sg[self.node].out1, out1);
+        let out = sg[self.node]
+            .out
+            .map_or("".to_owned(), |ix| sg[ix].to_string());
+        let out1 = sg[self.node]
+            .out1
+            .map_or("".to_owned(), |ix| sg[ix].to_string());
+        let full = format!(
+            "{}   (<{}> next: 1. <{:?}> {} 2. <{:?}> {})\n",
+            m, self.node, sg[self.node].out, out, sg[self.node].out1, out1
+        );
         full
     }
 }
@@ -144,7 +151,10 @@ pub fn start_match(sg: &StateGraph, m: MatchState) -> (bool, usize, Vec<Option<u
 
             // Found match (intentionally down here, after finalizing submatch processing). Only
             // update match if this match is longer than the previous one.
-            if next1.is_none() && next2.is_none() && (matchst.matchee.pos() > longestmatch || longestmatch == 0) {
+            if next1.is_none()
+                && next2.is_none()
+                && (matchst.matchee.pos() > longestmatch || longestmatch == 0)
+            {
                 ismatch = true;
                 matches = matchst.submatches.borrow().clone();
                 longestmatch = matchst.matchee.pos();

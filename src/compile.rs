@@ -1,6 +1,6 @@
 use matcher::{self, wrap_matcher};
 use repr::{AnchorLocation, Pattern, Repetition};
-use state::{State, Submatch, StateGraph, StateRef};
+use state::{State, StateGraph, StateRef, Submatch};
 
 /// Types implementing Compile can be compiled into a state graph.
 pub trait Compile {
@@ -158,7 +158,11 @@ impl Compile for Pattern {
 }
 
 // alternate compiles a list of patterns into a graph that accepts any one of the patterns.
-fn alternate(sg: &mut StateGraph, ps: &[Pattern], to_patch: &[StateRef]) -> (StateRef, Vec<StateRef>) {
+fn alternate(
+    sg: &mut StateGraph,
+    ps: &[Pattern],
+    to_patch: &[StateRef],
+) -> (StateRef, Vec<StateRef>) {
     if ps.len() == 1 {
         let (s, sp) = ps[0].to_state(sg);
         for e in to_patch {
