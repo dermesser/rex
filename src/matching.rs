@@ -11,19 +11,27 @@ use std::rc::Rc;
 use matcher::Matchee;
 use state::{StateGraph, StateRef, Submatch};
 
+/// MatchState stores a state in the overall algorithm while matching a string ("matchee") against
+/// a regular expression. Every time there is more than one forward state (e.g. optional
+/// repetitions), the state can be "forked", meaning a new state is produced, that can be used
+/// later if some part of the regular expression doesn't match and we need to go back.
 #[derive(Clone, Debug)]
 pub struct MatchState {
+    /// The current node in the StateGraph.
     node: StateRef,
+    /// String that we are working on and position in it.
     matchee: Matchee,
-    // The set of submatches encountered, indexed by the start of a submatch. If submatches
-    // (with (start,end)) (1,3),(5,10) have been encountered, then submatches[1] = Some(3) and
-    // submatches[5] = Some(10). If the contents is None, then the end has not yet been
-    // encountered.
-    // BUG: This doesn't work for several submatches starting at the same position. For that, we'd
-    // need a Rc<RefCell<Vec<Vec<usize>>>> :-)
+    /// The set of submatches encountered, indexed by the start of a submatch. If submatches
+    /// (with (start,end)) (1,3),(5,10) have been encountered, then submatches[1] = Some(3) and
+    /// submatches[5] = Some(10). If the contents is None, then the end has not yet been
+    /// encountered.
+    ///
+    /// BUG: This doesn't work for several submatches starting at the same position. For that, we'd
+    /// need a Rc<RefCell<Vec<Vec<usize>>>> :-)
     submatches: Rc<RefCell<Vec<Option<usize>>>>,
-    // We need to clone the submatches queue only rarely (when a submatch starts or ends).
+    /// We need to clone the submatches queue only rarely (when a submatch starts or ends).
     submatches_todo: Rc<Vec<usize>>,
+    /// Currently unused
     debug: bool,
 }
 

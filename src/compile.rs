@@ -1,3 +1,13 @@
+//! The compile module is responsible for taking a `Pattern` and compiling it into a `StateGraph`
+//! (as defined in `state`). It is recommended to optimize Patterns before compiling them.
+//!
+//! The output of `to_state()`, which is implemented for Pattern and some subtypes, is a
+//! `StateGraph`, which itself is a vector of `State` objects, each of which in turn is a state of
+//! the generated state machine. The states reference each other by their indices in the
+//! `StateGraph`.
+//!
+//! `start_compile()` is the entry point and public API of this module.
+
 use matcher::{self, wrap_matcher};
 use repr::{AnchorLocation, Pattern, Repetition};
 use state::{State, StateGraph, StateRef, Submatch};
@@ -157,7 +167,7 @@ impl Compile for Pattern {
     }
 }
 
-// alternate compiles a list of patterns into a graph that accepts any one of the patterns.
+/// alternate compiles a list of patterns into a graph that accepts any one of the patterns.
 fn alternate(
     sg: &mut StateGraph,
     ps: &[Pattern],

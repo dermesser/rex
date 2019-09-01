@@ -27,6 +27,7 @@ pub enum Pattern {
     Anchor(AnchorLocation),
 }
 
+/// `AnchorLocation` encodes `^` and `$` anchors, respectively.
 #[derive(Clone, Debug, PartialEq)]
 pub enum AnchorLocation {
     Begin,
@@ -35,8 +36,9 @@ pub enum AnchorLocation {
 
 /// A pattern can be repeated in various manners, which is represented by the pattern being wrapped
 /// in a Repetition.
+///
 /// The inner type is a pattern, because a repetition is either concerned with only one pattern
-/// (/.?/), or a submatch (/(abc)?/).
+/// (`/.?/`), or a submatch (`/(abc)?/`).
 #[derive(Clone, Debug, PartialEq)]
 pub enum Repetition {
     /// /P+/

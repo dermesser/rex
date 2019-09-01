@@ -9,6 +9,8 @@ mod state;
 
 mod tests;
 
+/// Render the state machine generated from `re` as graphviz `dot` input. The result can be pasted
+/// into `visualize.sh`, which renders a PNG image from it.
 pub fn render_graph(re: &str) -> String {
     return format!(
         "digraph st {{ {} }}",
@@ -16,6 +18,8 @@ pub fn render_graph(re: &str) -> String {
     );
 }
 
+/// Translate a regular expression string into an unoptimized `Pattern`. This is useful for
+/// inspecting (Pattern implements `Debug`) the parser output if there are unexpected effects.
 fn parse(re: &str) -> Result<repr::Pattern, String> {
     return parse::parse(re);
 }
@@ -39,8 +43,8 @@ pub fn match_re_str(re: &str, s: &str) -> Result<(bool, Vec<(usize, usize)>), St
     ));
 }
 
-/// Compile a regular expression into a representation that can be directly used for matching with
-/// `match_re()`.
+/// Optimize and compile a regular expression into a representation that can be directly used for
+/// matching with `match_re()`.
 pub fn compile(re: &str) -> Result<state::CompiledRE, String> {
     Ok(compile::start_compile(&repr::optimize::optimize(parse(
         re,

@@ -36,6 +36,8 @@ pub struct State {
     pub sub: Option<Submatch>,
 }
 
+/// A `State` can be marked to start or end a submatch (usually denoted by parentheses in a regular
+/// expression).
 #[derive(Clone, Debug)]
 pub enum Submatch {
     Start,
@@ -88,7 +90,7 @@ impl State {
     }
 }
 
-/// dot converts a graph starting with s into a Dot graph.
+/// dot converts a graph into a graphviz dot representation.
 pub fn dot(stateg: &StateGraph) -> String {
     let mut result = String::new();
 

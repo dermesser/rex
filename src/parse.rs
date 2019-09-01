@@ -10,13 +10,16 @@ use std::str::FromStr;
 
 use repr::{AnchorLocation, Pattern, Repetition};
 
+/// The entry point for this module: Parse a string into a `Pattern` that can be optimized and/or
+/// compiled.
 pub fn parse(s: &str) -> Result<Pattern, String> {
     let src: Vec<char> = s.chars().collect();
     parse_re(ParseState::new(&src)).map(|t| t.0)
 }
 
-/// ParseStack contains already parsed elements of a regular expression. It can be converted to an
-/// RETree.
+/// ParseStack contains already parsed elements of a regular expression, and is used for parsing
+/// textual regular expressions (as the parsing algorithm is stack-based). It can be converted to
+/// an Pattern.
 struct ParseStack {
     s: Vec<Pattern>,
 }
@@ -36,7 +39,7 @@ impl ParseStack {
     fn empty(&self) -> bool {
         self.s.is_empty()
     }
-    fn to_retree(mut self) -> Pattern {
+    fn to_pattern(mut self) -> Pattern {
         if self.s.len() > 1 {
             Pattern::Concat(self.s)
         } else if self.s.len() == 1 {
@@ -119,8 +122,8 @@ impl<'a> Clone for ParseState<'a> {
     }
 }
 
-// parse_re is the parser entry point; like all parser functions, it returns either a pair of
-// (parsed pattern, new ParseState) or an error string.
+/// parse_re is the parser entry point; like all parser functions, it returns either a pair of
+/// (parsed pattern, new ParseState) or an error string.
 fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), String> {
     // The stack assists us in parsing the linear parts of a regular expression, e.g. non-pattern
     // characters, or character sets.
@@ -169,7 +172,7 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
             // alternation between what we've already seen and the stuff on the right.
             '|' => {
                 let (rest, newst) = parse_re(s.from(1))?;
-                let left = stack.to_retree();
+                let left = stack.to_pattern();
                 stack = ParseStack::new();
                 stack.push(Pattern::Alternate(vec![left, rest]));
                 s = newst;
@@ -217,11 +220,11 @@ fn parse_re<'a>(mut s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), Stri
             }
         }
     }
-    Ok((stack.to_retree(), s))
+    Ok((stack.to_pattern(), s))
 }
 
-// parse_char_set parses the character set at the start of the input state.
-// Valid states are [a], [ab], [a-z], [-a-z], [a-z-] and [a-fh-kl].
+/// parse_char_set parses the character set at the start of the input state.
+/// Valid states are [a], [ab], [a-z], [-a-z], [a-z-] and [a-fh-kl].
 fn parse_char_set<'a>(s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), String> {
     if let Some((cs, rest)) = split_in_parens(s.clone(), SQUARE_BRACKETS) {
         let mut chars: Vec<char> = vec![];
@@ -261,7 +264,7 @@ fn parse_char_set<'a>(s: ParseState<'a>) -> Result<(Pattern, ParseState<'a>), St
     }
 }
 
-// Parse a repetition spec inside curly braces: {1} | {1,} | {,1} | {1,2}
+/// Parse a repetition spec inside curly braces: {1} | {1,} | {,1} | {1,2}
 fn parse_specific_repetition<'a>(rep: ParseState<'a>, p: Pattern) -> Result<Pattern, String> {
     let mut nparts = 0;
     let mut parts: [Option<&[char]>; 2] = Default::default();
@@ -330,12 +333,15 @@ fn parse_specific_repetition<'a>(rep: ParseState<'a>, p: Pattern) -> Result<Patt
     Err(format!("invalid repetition pattern {:?}", &rep[..]))
 }
 
+/// Constants for generalizing parsing of parentheses.
 const ROUND_PARENS: (char, char) = ('(', ')');
+/// Constants for generalizing parsing of parentheses.
 const SQUARE_BRACKETS: (char, char) = ('[', ']');
+/// Constants for generalizing parsing of parentheses.
 const CURLY_BRACKETS: (char, char) = ('{', '}');
 
-// split_in_parens returns two new ParseStates; the first one containing the contents of the
-// parenthesized clause starting at s[0], the second one containing the rest.
+/// split_in_parens returns two new ParseStates; the first one containing the contents of the
+/// parenthesized clause starting at s[0], the second one containing the rest.
 fn split_in_parens<'a>(
     s: ParseState<'a>,
     parens: (char, char),
@@ -347,8 +353,8 @@ fn split_in_parens<'a>(
     }
 }
 
-// find_closing_paren returns the index of the parenthesis closing the opening parenthesis at the
-// beginning of the state's string.
+/// find_closing_paren returns the index of the parenthesis closing the opening parenthesis at the
+/// beginning of the state's string.
 fn find_closing_paren<'a>(s: ParseState<'a>, parens: (char, char)) -> Option<usize> {
     if s[0] != parens.0 {
         return None;
