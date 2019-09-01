@@ -71,7 +71,7 @@ impl State {
         (self.out.clone(), self.out1.clone())
     }
 
-    fn to_string(&self) -> String {
+    pub fn to_string(&self) -> String {
         format!(
             "m:{} sub:{}",
             if let Some(ref m) = self.matcher {

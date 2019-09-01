@@ -24,6 +24,7 @@ pub struct MatchState {
     submatches: Rc<RefCell<Vec<Option<usize>>>>,
     // We need to clone the submatches queue only rarely (when a submatch starts or ends).
     submatches_todo: Rc<Vec<usize>>,
+    debug: bool,
 }
 
 impl MatchState {
@@ -33,6 +34,7 @@ impl MatchState {
             matchee: Matchee::from_string(s),
             submatches: Rc::new(RefCell::new(vec![None; s.len()])),
             submatches_todo: Rc::new(Vec::with_capacity(4)),
+            debug: false,
         }
     }
     fn fork(&self, next: StateRef, advance: usize) -> MatchState {
@@ -64,6 +66,13 @@ impl MatchState {
             self.submatches_todo = Rc::new(new_submatches);
             self.submatches.borrow_mut()[begin] = Some(self.matchee.pos());
         }
+    }
+    fn debug(&self, sg: &StateGraph) -> String {
+        let m = self.matchee.string();
+        let out = sg[self.node].out.map_or("".to_owned(), |ix| sg[ix].to_string());
+        let out1 = sg[self.node].out1.map_or("".to_owned(), |ix| sg[ix].to_string());
+        let full = format!("{}   (<{}> next: 1. <{:?}> {} 2. <{:?}> {})\n", m, self.node, sg[self.node].out, out, sg[self.node].out1, out1);
+        full
     }
 }
 

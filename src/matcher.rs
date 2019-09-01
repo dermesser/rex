@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 
 use std::fmt::Debug;
-use std::iter::FromIterator;
+use std::iter::{self, FromIterator};
 use std::rc::Rc;
 
 /// Matchee contains a character and position to match. It's used by the matching logic to check
@@ -45,6 +45,11 @@ impl Matchee {
     }
     pub fn finished(&self) -> bool {
         self.ix == self.src.len()
+    }
+    pub fn string(&self) -> String {
+        let matchee = String::from_iter(self.src.iter());
+        let pointer = String::from_iter(iter::repeat(' ').take(self.ix).chain(iter::once('^')));
+        format!("{}\n{}", matchee, pointer)
     }
 }
 
