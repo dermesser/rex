@@ -2,8 +2,6 @@
 
 //! A general test suite aiming for wide coverage of positive and negative matches.
 
-use crate::{compile, matching, parse, repr};
-
 fn match_re(re: &str, s: &str) -> (bool, Vec<(usize, usize)>) {
     crate::match_re_str(re, s).unwrap()
 }
