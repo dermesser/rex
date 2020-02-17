@@ -35,6 +35,13 @@ fn bench_notorious(b: &mut Bencher) {
     });
 }
 
+fn bench_notorious_regex_crate(b: &mut Bencher) {
+    let re = regex::Regex::new("(x+x+)+y").unwrap();
+    b.iter(|| {
+        assert!(re.is_match("xxxxxxxxxxy"));
+    });
+}
+
 fn bench_regex_crate(b: &mut Bencher) {
     let re = regex::Regex::new("^(Hello)? [Ww]orld!?$").unwrap();
     b.iter(|| {
@@ -47,6 +54,7 @@ benchmark_group!(
     bench_simple_re,
     bench_simple_precompile,
     bench_notorious,
+    bench_notorious_regex_crate,
     bench_regex_crate,
     bench_simplest_precompile
 );
