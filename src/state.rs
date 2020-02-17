@@ -107,7 +107,7 @@ pub fn dot(stateg: &StateGraph) -> String {
         }
         visited.insert(current);
 
-        for next in [stateg[current].out.clone(), stateg[current].out1.clone()].into_iter() {
+        for next in [stateg[current].out.clone(), stateg[current].out1.clone()].iter() {
             if let &Some(nextid) = next {
                 let o = &stateg[nextid];
                 write!(
