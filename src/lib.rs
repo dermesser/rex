@@ -9,6 +9,13 @@ mod state;
 
 mod tests;
 
+use std::iter::FromIterator;
+
+/// Easily take a substring from a match tuple.
+pub fn substring(s: &str, (from, len): (usize, usize)) -> String {
+    String::from_iter(s.chars().skip(from).take(len))
+}
+
 /// Render the state machine generated from `re` as graphviz `dot` input. The result can be pasted
 /// into `visualize.sh`, which renders a PNG image from it.
 pub fn render_graph(re: &str) -> String {
@@ -46,9 +53,9 @@ pub fn match_re_str(re: &str, s: &str) -> Result<(bool, Vec<(usize, usize)>), St
 /// Optimize and compile a regular expression into a representation that can be directly used for
 /// matching with `match_re()`.
 pub fn compile(re: &str) -> Result<state::CompiledRE, String> {
-    Ok(compile::start_compile(&repr::optimize::optimize(parse(
+    Ok(state::CompiledRE(compile::start_compile(&repr::optimize::optimize(parse(
         re,
-    )?)))
+    )?))))
 }
 
 /// Match a regular expression compiled with `compile()` against a string. Returns a tuple of a
@@ -56,5 +63,5 @@ pub fn compile(re: &str) -> Result<state::CompiledRE, String> {
 /// tuples for all submatches, where the first element describes the match by the whole regular
 /// expression.
 pub fn match_re(re: &state::CompiledRE, s: &str) -> (bool, Vec<(usize, usize)>) {
-    matching::do_match(re, s)
+    matching::do_match(&re.0, s)
 }

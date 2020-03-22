@@ -21,7 +21,7 @@ pub type StateGraph = Vec<State>;
 pub type StateRef = usize;
 
 /// CompiledRE is a compiled regular expression that can be used for matching.
-pub type CompiledRE = StateGraph;
+pub struct CompiledRE (pub(crate) StateGraph);
 
 /// State is a single state that the evaluation can be in. It contains several output states as
 /// well as a matcher.
