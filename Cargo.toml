@@ -1,6 +1,6 @@
 [package]
 name = "rex-regex"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Lewin Bormann <lewin@lewin-bormann.info>"]
 description = "A pedestrian library for regular expressions: Slow, but easy to understand"
 license = "MIT"
