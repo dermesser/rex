@@ -53,9 +53,9 @@ pub fn match_re_str(re: &str, s: &str) -> Result<(bool, Vec<(usize, usize)>), St
 /// Optimize and compile a regular expression into a representation that can be directly used for
 /// matching with `match_re()`.
 pub fn compile(re: &str) -> Result<state::CompiledRE, String> {
-    Ok(state::CompiledRE(compile::start_compile(&repr::optimize::optimize(parse(
-        re,
-    )?))))
+    Ok(state::CompiledRE(compile::start_compile(
+        &repr::optimize::optimize(parse(re)?),
+    )))
 }
 
 /// Match a regular expression compiled with `compile()` against a string. Returns a tuple of a
