@@ -3,6 +3,7 @@
 mod compile;
 mod matcher;
 mod matching;
+mod optimize;
 mod parse;
 mod repr;
 mod state;
@@ -44,17 +45,14 @@ fn compile_and_match(re: &repr::Pattern, s: &str) -> (bool, Vec<(usize, usize)>)
 /// regular expression will be compiled every time. Use `compile()` and `match_re()` to make this
 /// more efficient (about 3x faster).
 pub fn match_re_str(re: &str, s: &str) -> Result<(bool, Vec<(usize, usize)>), String> {
-    return Ok(compile_and_match(
-        &repr::optimize::optimize(parse::parse(re)?),
-        s,
-    ));
+    return Ok(compile_and_match(&optimize::optimize(parse::parse(re)?), s));
 }
 
 /// Optimize and compile a regular expression into a representation that can be directly used for
 /// matching with `match_re()`.
 pub fn compile(re: &str) -> Result<state::CompiledRE, String> {
     Ok(state::CompiledRE(compile::start_compile(
-        &repr::optimize::optimize(parse(re)?),
+        &optimize::optimize(parse(re)?),
     )))
 }
 
