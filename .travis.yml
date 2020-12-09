@@ -19,6 +19,7 @@ install: true
 script: 
   - cargo build
   - cargo test
+  - cargo bench
 
 jobs:
   include:

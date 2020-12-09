@@ -1,6 +1,7 @@
 //! The state module defines the types used for building the so called states graph; a graph used
-//! during interpretation of a regular expression. It is built from a (parsed) representation in
-//! the repr module.
+//! during interpretation of a regular expression (i.e., the state machine). It is built from a
+//! (parsed) representation in the repr module.
+
 #![allow(dead_code)]
 
 use std::collections::HashSet;

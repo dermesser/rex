@@ -1,5 +1,7 @@
-/// optimize contains functionality for optimizing the representation of regular expressions for
-/// more efficient matching.
+//! optimize contains functionality for optimizing the representation of regular expressions for
+//! more efficient matching. This means that the pattern is optimized before it being compiled to
+//! the state machine.
+
 use std::iter::{FromIterator, Iterator};
 use std::ops::Deref;
 
