@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 use std::cell::RefCell;
+use std::collections::{HashSet, HashMap};
 use std::mem;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -123,28 +124,38 @@ pub fn do_match(sg: &StateGraph, s: &str) -> (bool, Vec<(usize, usize)>) {
     (false, vec![])
 }
 
+/// Create a HashMap key from a matchstate, in order to deduplicate states.
+fn state_key(m: &MatchState) -> (usize, StateRef) {
+    (m.matchee.pos(), m.node)
+}
+
 /// start_match takes an initialized MatchState and starts matching. It returns true if the input
 /// string matches, otherwise false; the index in the input string to which the match was
 /// successful (in case a match fails, but matches some characters at the beginning); and a vector
 /// of submatches; if the entry at index I contains Some(J), then that means that there is a
 /// submatch starting at I extending to (J-1).
 pub fn start_match(sg: &StateGraph, m: MatchState) -> (bool, usize, Vec<Option<usize>>) {
-    let mut states = Vec::with_capacity(4);
-    let mut states_next = Vec::with_capacity(4);
-    states.push(m);
+    // State map keyed by (matchee position, node index). These two keep the current set of states
+    // within the string and the set of states for the next iteration. They are keyed by string
+    // position and node index to avoid duplication, which makes certain pathological regular
+    // expressions have exponential complexity (as a function of input size).
+    let mut states_map = HashMap::new();
+    let mut states_map_next = HashMap::new();
+
+    states_map.insert(state_key(&m), m);
 
     let (mut ismatch, mut matches) = (false, vec![]);
     let mut longestmatch = 0;
     let mut longest_partial_match = 0;
 
     loop {
-        if states.is_empty() {
+        if states_map.is_empty() {
             break;
         }
 
         // Iterate over all current states, see which match, and add the successors of matching
         // states to the states_next list.
-        for mut matchst in states.drain(..) {
+        for (_, mut matchst) in states_map.drain() {
             let (next1, next2) = sg[matchst.node].next_states();
 
             // Check if this node is a submatch start or end. If it is, the list of pending
@@ -193,20 +204,21 @@ pub fn start_match(sg: &StateGraph, m: MatchState) -> (bool, usize, Vec<Option<u
             if next1.is_some() && next2.is_some() {
                 // If the current state matched, or it didn't have a matcher, push next states into
                 // list of next states.
-                states_next.push(matchst.fork(next1.unwrap(), advance_by));
+                let nextst = matchst.fork(next1.unwrap(), advance_by);
+                states_map_next.entry(state_key(&nextst)).or_insert(nextst);
                 matchst.update(next2.unwrap(), advance_by);
-                states_next.push(matchst);
+                states_map_next.entry(state_key(&matchst)).or_insert(matchst);
             } else if let Some(n1) = next1 {
                 // Reuse current state if only one successor (common case).
                 matchst.update(n1, advance_by);
-                states_next.push(matchst)
+                states_map_next.entry(state_key(&matchst)).or_insert(matchst);
             } else if let Some(n2) = next2 {
                 matchst.update(n2, advance_by);
-                states_next.push(matchst);
+                states_map_next.entry(state_key(&matchst)).or_insert(matchst);
             }
         }
         // Swap state lists, leaving states_next empty.
-        mem::swap(&mut states, &mut states_next);
+        mem::swap(&mut states_map, &mut states_map_next);
     }
 
     return (ismatch, longest_partial_match, matches);

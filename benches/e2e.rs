@@ -47,7 +47,7 @@ fn bench_notorious_but_sane(b: &mut Bencher) {
 fn bench_notorious_regex_crate(b: &mut Bencher) {
     let re = regex::Regex::new("(x+x+)+y").unwrap();
     b.iter(|| {
-        assert!(re.is_match("xxxxxxxxxxy"));
+        assert!(re.is_match("xxxxxxxxxxxxxxxxxxxxxxy"));
     });
 }
 

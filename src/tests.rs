@@ -8,7 +8,10 @@ fn match_re(re: &str, s: &str) -> (bool, Vec<(usize, usize)>) {
 
 #[test]
 fn test_notorious_graph() {
-    println!("{}", crate::render_graph("(x+x+)+y"));
+    let re = "(x+x+)+y";
+    println!("{:?}", crate::parse(re));
+    println!("{}", crate::render_graph(re));
+    match_re(re, "xxxxy");
 }
 
 #[test]
