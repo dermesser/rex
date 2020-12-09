@@ -8,8 +8,8 @@ use std::mem;
 use std::ops::Deref;
 use std::rc::Rc;
 
-use matcher::Matchee;
-use state::{StateGraph, StateRef, Submatch};
+use crate::matcher::Matchee;
+use crate::state::{StateGraph, StateRef, Submatch};
 
 /// MatchState stores a state in the overall algorithm while matching a string ("matchee") against
 /// a regular expression. Every time there is more than one forward state (e.g. optional
@@ -215,10 +215,10 @@ pub fn start_match(sg: &StateGraph, m: MatchState) -> (bool, usize, Vec<Option<u
 #[cfg(test)]
 mod tests {
     use super::*;
-    use compile::*;
-    use parse;
-    use repr::*;
-    use state::*;
+    use crate::compile::*;
+    use crate::parse;
+    use crate::repr::*;
+    use crate::state::*;
 
     fn simple_re0() -> Pattern {
         parse::parse("aa+$").unwrap()

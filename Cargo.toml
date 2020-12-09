@@ -6,6 +6,7 @@ description = "A pedestrian library for regular expressions: Slow, but easy to u
 license = "MIT"
 repository = "https://github.com/dermesser/rex"
 documentation = "https://docs.rs/rex-regex"
+edition = "2018"
 
 [dependencies]
 

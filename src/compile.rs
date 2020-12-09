@@ -8,9 +8,9 @@
 //!
 //! `start_compile()` is the entry point and public API of this module.
 
-use matcher::{self, wrap_matcher};
-use repr::{AnchorLocation, Pattern, Repetition};
-use state::{State, StateGraph, StateRef, Submatch};
+use crate::matcher::{self, wrap_matcher};
+use crate::repr::{AnchorLocation, Pattern, Repetition};
+use crate::state::{State, StateGraph, StateRef, Submatch};
 
 /// Types implementing Compile can be compiled into a state graph.
 pub trait Compile {

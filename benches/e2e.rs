@@ -2,6 +2,8 @@
 extern crate bencher;
 extern crate regex;
 
+use rex_regex as rex;
+
 use bencher::Bencher;
 
 fn bench_simple_re(b: &mut Bencher) {
@@ -35,6 +37,13 @@ fn bench_notorious(b: &mut Bencher) {
     });
 }
 
+fn bench_notorious_but_sane(b: &mut Bencher) {
+    let re = rex::compile("(x+)y").unwrap();
+    b.iter(|| {
+        assert!(rex::match_re(&re, "xxxxxxxxxxy").0);
+    });
+}
+
 fn bench_notorious_regex_crate(b: &mut Bencher) {
     let re = regex::Regex::new("(x+x+)+y").unwrap();
     b.iter(|| {
@@ -54,6 +63,7 @@ benchmark_group!(
     bench_simple_re,
     bench_simple_precompile,
     bench_notorious,
+    bench_notorious_but_sane,
     bench_notorious_regex_crate,
     bench_regex_crate,
     bench_simplest_precompile

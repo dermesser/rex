@@ -1,3 +1,5 @@
+use rex_regex as rex;
+
 fn bench_complicated() {
     let re_s = "^[hH][eE]l+o +[Ww]orld!?$";
     let re = rex::compile(re_s).unwrap();

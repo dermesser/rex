@@ -10,7 +10,7 @@ use std::iter::FromIterator;
 use std::rc::Rc;
 use std::vec::Vec;
 
-use matcher::{Matchee, Matcher};
+use crate::matcher::{Matchee, Matcher};
 
 /// StateGraph is the graph of states that the interpreter traverses while matching a regular
 /// expression. It is represented as flat vector. The first element is the State node to start the

@@ -167,7 +167,7 @@ pub mod optimize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use state::*;
+    use crate::state::*;
 
     #[test]
     fn test_repr_optimize() {
@@ -255,7 +255,7 @@ mod tests {
         ])
     }
 
-    use compile::start_compile;
+    use crate::compile::start_compile;
 
     #[test]
     fn test_re1() {

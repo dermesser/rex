@@ -8,7 +8,7 @@ use std::iter::FromIterator;
 use std::ops::{Index, Range, RangeFull};
 use std::str::FromStr;
 
-use repr::{AnchorLocation, Pattern, Repetition};
+use crate::repr::{AnchorLocation, Pattern, Repetition};
 
 /// The entry point for this module: Parse a string into a `Pattern` that can be optimized and/or
 /// compiled.
@@ -377,9 +377,9 @@ fn find_closing_paren<'a>(s: ParseState<'a>, parens: (char, char)) -> Option<usi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use compile::*;
-    use repr::*;
-    use state::dot;
+    use crate::compile::*;
+    use crate::repr::*;
+    use crate::state::dot;
 
     #[test]
     fn test_find_closing_paren() {
