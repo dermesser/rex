@@ -4,7 +4,7 @@
 #![allow(dead_code)]
 
 use std::cell::RefCell;
-use std::collections::{HashSet, HashMap};
+use std::collections::HashMap;
 use std::mem;
 use std::ops::Deref;
 use std::rc::Rc;
