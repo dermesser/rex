@@ -242,21 +242,6 @@ mod tests {
         parse::parse("aa+$").unwrap()
     }
 
-    // /a(b|c)(xx)?$/
-    fn raw_re() -> Pattern {
-        Pattern::Concat(vec![
-            Pattern::CharRange('a', 'a'),
-            Pattern::Submatch(Box::new(Pattern::Alternate(vec![
-                (Pattern::Char('b')),
-                (Pattern::Char('c')),
-            ]))),
-            Pattern::Submatch(Box::new(Pattern::Repeated(Box::new(
-                Repetition::ZeroOrOnce(Pattern::Str("xx".to_string())),
-            )))),
-            Pattern::Anchor(AnchorLocation::End),
-        ])
-    }
-
     #[test]
     fn test_match_simple() {
         let re = simple_re0();
