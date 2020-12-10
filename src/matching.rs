@@ -207,14 +207,20 @@ pub fn start_match(sg: &StateGraph, m: MatchState) -> (bool, usize, Vec<Option<u
                 let nextst = matchst.fork(next1.unwrap(), advance_by);
                 states_map_next.entry(state_key(&nextst)).or_insert(nextst);
                 matchst.update(next2.unwrap(), advance_by);
-                states_map_next.entry(state_key(&matchst)).or_insert(matchst);
+                states_map_next
+                    .entry(state_key(&matchst))
+                    .or_insert(matchst);
             } else if let Some(n1) = next1 {
                 // Reuse current state if only one successor (common case).
                 matchst.update(n1, advance_by);
-                states_map_next.entry(state_key(&matchst)).or_insert(matchst);
+                states_map_next
+                    .entry(state_key(&matchst))
+                    .or_insert(matchst);
             } else if let Some(n2) = next2 {
                 matchst.update(n2, advance_by);
-                states_map_next.entry(state_key(&matchst)).or_insert(matchst);
+                states_map_next
+                    .entry(state_key(&matchst))
+                    .or_insert(matchst);
             }
         }
         // Swap state lists, leaving states_next empty.
