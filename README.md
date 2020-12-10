@@ -1,7 +1,6 @@
 # rex
 
-[![Travis
-CI](https://api.travis-ci.org/dermesser/rex.svg?branch=master)](https://travis-ci.org/dermesser/rex)
+![CI](https://github.com/dermesser/rex/workflows/CI/badge.svg)
 
 rex is a mere playground where I'm trying to write an engine for parsing,
 compiling and matching regular expressions.
